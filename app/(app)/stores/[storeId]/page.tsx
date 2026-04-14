@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { NICHES } from '@/lib/constants/niches'
 import { COUNTRIES } from '@/lib/constants/countries'
+import { GenerateReviewsButton } from '@/components/reviews/generate-reviews-button'
 
 interface Props {
   params: Promise<{ storeId: string }>
@@ -82,12 +83,12 @@ export default async function StorePage({ params }: Props) {
               return (
                 <div
                   key={product.id}
-                  className="flex items-center justify-between p-5 bg-card border border-border rounded-xl"
+                  className="flex items-start justify-between p-5 bg-card border border-border rounded-xl"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-start gap-4">
                     {/* Color indicator */}
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-base shrink-0"
+                      className="w-10 h-10 rounded-lg flex items-center justify-center text-base shrink-0 mt-0.5"
                       style={{ background: product.hex_primary ?? '#6366f1' }}
                     >
                       <span style={{ filter: 'brightness(3)' }}>{niche?.emoji ?? '📦'}</span>
@@ -109,6 +110,14 @@ export default async function StorePage({ params }: Props) {
                           </>
                         )}
                       </div>
+                      {!product.has_reviews && (
+                        <div className="mt-3">
+                          <GenerateReviewsButton
+                            productId={product.id}
+                            productName={product.name}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 
