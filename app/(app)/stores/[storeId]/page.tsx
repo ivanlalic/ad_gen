@@ -105,7 +105,7 @@ export default async function StorePage({ params }: Props) {
               const lastBatch = product.batches?.[0]
 
               return (
-                <Card key={product.id} className="group">
+                <Card key={product.id} className="group card-glow border-gradient">
                   <CardContent className="flex items-start gap-4 py-3">
                     {/* Color + niche icon */}
                     <div

@@ -53,7 +53,7 @@ export default async function StoresPage() {
             const productCount = store.products?.length ?? 0
             return (
               <Link key={store.id} href={`/stores/${store.id}`} className="group block">
-                <Card className="transition-all duration-150 hover:ring-primary/40 hover:bg-card/80 cursor-pointer">
+                <Card className="card-glow cursor-pointer border-gradient">
                   <CardContent className="flex items-center justify-between gap-4 py-2">
                     <div className="flex items-center gap-4">
                       {/* Store icon */}

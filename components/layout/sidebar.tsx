@@ -33,17 +33,37 @@ export function Sidebar({ user }: SidebarProps) {
   const avatarLetter = (user.email ?? "U")[0].toUpperCase()
 
   return (
-    <aside className="w-56 h-full flex flex-col bg-sidebar border-r border-sidebar-border shrink-0">
+    <aside className="relative w-56 h-full flex flex-col bg-sidebar border-r border-sidebar-border shrink-0 overflow-hidden">
+      {/* Subtle top glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-0 left-0 right-0 h-32 opacity-40"
+        style={{
+          background: 'radial-gradient(ellipse 120% 80% at 50% -20%, oklch(0.63 0.22 264 / 0.25) 0%, transparent 70%)',
+        }}
+      />
+
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-sidebar-border">
-        <span className="text-foreground font-bold tracking-tight text-base select-none">
-          Ad<span className="text-primary">Gen</span>
-          <span className="text-muted-foreground font-light ml-1.5 text-xs">2.0</span>
-        </span>
+      <div className="relative px-5 py-5 border-b border-sidebar-border">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
+            style={{
+              background: 'linear-gradient(135deg, oklch(0.63 0.22 264), oklch(0.55 0.22 290))',
+              boxShadow: '0 0 12px oklch(0.63 0.22 264 / 0.4)',
+            }}
+          >
+            A
+          </div>
+          <span className="text-foreground font-bold tracking-tight text-sm select-none">
+            Ad<span className="text-gradient">Gen</span>
+            <span className="text-muted-foreground font-light ml-1 text-xs">2.0</span>
+          </span>
+        </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="relative flex-1 px-3 py-4 space-y-0.5">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/")
           return (
@@ -51,16 +71,27 @@ export function Sidebar({ user }: SidebarProps) {
               key={href}
               href={href}
               className={[
-                "relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all duration-150",
+                "relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150",
                 active
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                  ? "text-primary font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
               ].join(" ")}
+              style={active ? {
+                background: 'linear-gradient(90deg, oklch(0.63 0.22 264 / 0.15), oklch(0.63 0.22 264 / 0.05))',
+                boxShadow: 'inset 0 0 0 1px oklch(0.63 0.22 264 / 0.2)',
+              } : {}}
             >
               {active && (
-                <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-primary" />
+                <span
+                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full"
+                  style={{ background: 'linear-gradient(180deg, oklch(0.75 0.18 264), oklch(0.60 0.22 290))' }}
+                />
               )}
-              <Icon size={15} strokeWidth={active ? 2.5 : 2} />
+              <Icon
+                size={15}
+                strokeWidth={active ? 2.5 : 1.75}
+                className={active ? 'text-primary' : ''}
+              />
               {label}
             </Link>
           )
@@ -68,10 +99,17 @@ export function Sidebar({ user }: SidebarProps) {
       </nav>
 
       {/* User footer */}
-      <div className="px-3 py-3 border-t border-sidebar-border space-y-1">
+      <div className="relative px-3 py-3 border-t border-sidebar-border space-y-1">
         <div className="flex items-center gap-2.5 px-3 py-2">
           <Avatar size="sm">
-            <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-semibold">
+            <AvatarFallback
+              className="text-[10px] font-semibold"
+              style={{
+                background: 'linear-gradient(135deg, oklch(0.63 0.22 264 / 0.3), oklch(0.55 0.22 290 / 0.2))',
+                color: 'oklch(0.80 0.18 264)',
+                border: '1px solid oklch(0.63 0.22 264 / 0.3)',
+              }}
+            >
               {avatarLetter}
             </AvatarFallback>
           </Avatar>
@@ -79,7 +117,7 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors duration-150"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors duration-150"
         >
           <LogOut size={14} />
           Cerrar sesión
