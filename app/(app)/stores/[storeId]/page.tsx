@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronRight, Plus, Layers, CheckCircle, Clock, Package } from 'lucide-react'
+import { ChevronRight, Plus, CheckCircle, Clock, Package } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { NICHES } from '@/lib/constants/niches'
 import { COUNTRIES } from '@/lib/constants/countries'
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { BatchList } from '@/components/batch/batch-list'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -102,7 +102,6 @@ export default async function StorePage({ params }: Props) {
             {store.products.map((product) => {
               const niche = NICHES.find((n) => n.key === product.niche)
               const batchCount = product.batches?.length ?? 0
-              const lastBatch = product.batches?.[0]
 
               return (
                 <Card key={product.id} className="group card-glow border-gradient">
@@ -144,26 +143,14 @@ export default async function StorePage({ params }: Props) {
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          {lastBatch && (
-                            <Link
-                              href={`/batch/${lastBatch.id}`}
-                              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'text-xs h-7 gap-1.5')}
-                            >
-                              <Layers size={11} />
-                              {batchCount} batch{batchCount !== 1 ? 'es' : ''}
-                              <StatusBadge status={lastBatch.status} />
-                            </Link>
-                          )}
-                          <Link
-                            href={`/batch/new?productId=${product.id}`}
-                            className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'text-xs h-7')}
-                          >
-                            <Plus size={11} />
-                            Batch
-                          </Link>
-                        </div>
+                        {/* New batch button */}
+                        <Link
+                          href={`/batch/new?productId=${product.id}`}
+                          className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'text-xs h-7 shrink-0')}
+                        >
+                          <Plus size={11} />
+                          Nuevo batch
+                        </Link>
                       </div>
 
                       {/* Generate reviews CTA */}
@@ -171,6 +158,11 @@ export default async function StorePage({ params }: Props) {
                         <div className="mt-3">
                           <GenerateReviewsButton productId={product.id} productName={product.name} />
                         </div>
+                      )}
+
+                      {/* Batch list */}
+                      {batchCount > 0 && (
+                        <BatchList batches={product.batches ?? []} />
                       )}
                     </div>
                   </CardContent>

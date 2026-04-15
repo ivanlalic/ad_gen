@@ -128,7 +128,9 @@ export async function deleteBatch(batchId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Delete concepts first (cascade)
+  // Delete concepts first (FK constraint)
+  await supabase.from('concepts').delete().eq('batch_id', batchId)
+
   const { error } = await supabase
     .from('batches')
     .delete()
