@@ -10,7 +10,6 @@ import { gooeyToast } from '@/components/ui/goey-toaster'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { deleteBatch } from '@/lib/actions/batches'
 import type { Database } from '@/types/supabase'
 
 type ConceptRow = Database['public']['Tables']['concepts']['Row']
@@ -218,10 +217,16 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     if (!confirm('¿Borrar este batch y todos sus conceptos? Esta acción no se puede deshacer.')) return
     setIsDeleting(true)
     try {
-      await deleteBatch(batch.id)
+      const res = await fetch('/api/batches/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchIds: [batch.id] }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       router.push(product ? `/stores/${product.store_id}` : '/stores')
-    } catch {
-      gooeyToast.error('Error al borrar el batch')
+    } catch (err) {
+      gooeyToast.error(`Error al borrar: ${err instanceof Error ? err.message : 'Error desconocido'}`)
       setIsDeleting(false)
     }
   }

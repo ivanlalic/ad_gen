@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { Trash2, Square, CheckSquare, ExternalLink } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Button } from '@/components/ui/button'
-import { deleteBatch, deleteBatches } from '@/lib/actions/batches'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 
 interface Batch {
@@ -58,11 +57,13 @@ export function BatchList({ batches }: BatchListProps) {
 
     setDeleting((prev) => new Set([...prev, ...ids]))
     try {
-      if (ids.length === 1) {
-        await deleteBatch(ids[0])
-      } else {
-        await deleteBatches(ids)
-      }
+      const res = await fetch('/api/batches/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchIds: ids }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setSelected(new Set())
       router.refresh()
     } catch (err) {
