@@ -255,7 +255,7 @@ Generá ${totalConcepts} conceptos ahora.`
   try {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      max_tokens: 32000,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
     })
