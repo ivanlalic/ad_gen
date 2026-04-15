@@ -5,11 +5,6 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
-const MODEL_MAP: Record<string, string> = {
-  'gemini-3.1-flash-image-preview': 'imagen-3.0-fast-generate-001',
-  'gemini-3-pro-image-preview': 'imagen-3.0-generate-002',
-}
-
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -73,32 +68,44 @@ export async function POST(req: NextRequest) {
     .eq('id', targetConceptId)
 
   try {
-    const model = MODEL_MAP[batch.nb2_model] ?? 'imagen-3.0-fast-generate-001'
+    // Use the model name directly — gemini-3.1-flash-image-preview / gemini-3-pro-image-preview
+    const model = batch.nb2_model ?? 'gemini-3.1-flash-image-preview'
     const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
+    const prompt = concept.nb2_prompt ?? concept.visual_description ?? ''
 
-    const response = await ai.models.generateImages({
+    const response = await ai.models.generateContent({
       model,
-      prompt: concept.nb2_prompt ?? concept.visual_description ?? '',
+      contents: prompt,
       config: {
-        numberOfImages: 1,
-        aspectRatio,
-        outputMimeType: 'image/jpeg',
+        responseModalities: ['IMAGE'],
+        imageConfig: { aspectRatio },
       },
     })
 
-    const imageBytes = response.generatedImages?.[0]?.image?.imageBytes
+    // Extract inline image bytes from response parts
+    let imageBytes: string | null = null
+    let mimeType = 'image/png'
+    for (const part of response.candidates?.[0]?.content?.parts ?? []) {
+      if (part.inlineData?.data) {
+        imageBytes = part.inlineData.data
+        mimeType = part.inlineData.mimeType ?? 'image/png'
+        break
+      }
+    }
+
     if (!imageBytes) {
-      throw new Error('No image bytes returned from Gemini')
+      throw new Error('No image data returned from Gemini')
     }
 
     // Upload to Supabase Storage via admin client (bypasses RLS)
+    const ext = mimeType.includes('jpeg') ? 'jpg' : 'png'
     const imageBuffer = Buffer.from(imageBytes, 'base64')
-    const storagePath = `${user.id}/${batchId}/${targetConceptId}.jpg`
+    const storagePath = `${user.id}/${batchId}/${targetConceptId}.${ext}`
 
     await supabaseAdmin.storage
       .from('generated-images')
       .upload(storagePath, imageBuffer, {
-        contentType: 'image/jpeg',
+        contentType: mimeType,
         upsert: true,
       })
 
@@ -141,6 +148,6 @@ export async function POST(req: NextRequest) {
       .update({ image_status: 'error' })
       .eq('id', targetConceptId)
 
-    return NextResponse.json({ error: 'Image generation failed', targetConceptId }, { status: 500 })
+    return NextResponse.json({ error: String(err), targetConceptId }, { status: 500 })
   }
 }
