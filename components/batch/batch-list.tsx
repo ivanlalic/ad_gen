@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Trash2, Square, CheckSquare, ExternalLink } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Button } from '@/components/ui/button'
-import { deleteBatch } from '@/lib/actions/batches'
+import { deleteBatch, deleteBatches } from '@/lib/actions/batches'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 
 interface Batch {
@@ -58,11 +58,15 @@ export function BatchList({ batches }: BatchListProps) {
 
     setDeleting((prev) => new Set([...prev, ...ids]))
     try {
-      await Promise.all(ids.map((id) => deleteBatch(id)))
+      if (ids.length === 1) {
+        await deleteBatch(ids[0])
+      } else {
+        await deleteBatches(ids)
+      }
       setSelected(new Set())
       router.refresh()
-    } catch {
-      gooeyToast.error('Error al borrar')
+    } catch (err) {
+      gooeyToast.error(`Error al borrar: ${err instanceof Error ? err.message : 'Error desconocido'}`)
     } finally {
       setDeleting((prev) => {
         const next = new Set(prev)

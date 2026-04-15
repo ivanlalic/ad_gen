@@ -139,3 +139,21 @@ export async function deleteBatch(batchId: string) {
   if (error) throw new Error(error.message)
   revalidatePath('/stores')
 }
+
+export async function deleteBatches(batchIds: string[]) {
+  if (batchIds.length === 0) return
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  // Delete all concepts for these batches in one query
+  await supabase.from('concepts').delete().in('batch_id', batchIds)
+
+  const { error } = await supabase
+    .from('batches')
+    .delete()
+    .in('id', batchIds)
+
+  if (error) throw new Error(error.message)
+  revalidatePath('/stores')
+}
