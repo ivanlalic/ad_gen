@@ -113,7 +113,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
 
   async function handleLaunch() {
     if (aspectRatios.length === 0) {
-      gooeyToast('Seleccioná al menos un formato', { type: 'error' })
+      gooeyToast.error('Seleccioná al menos un formato')
       return
     }
 
