@@ -7,6 +7,9 @@ import { motion } from 'framer-motion'
 import { Download, Loader2, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
 import { ConceptCard } from '@/components/batch/concept-card'
 import { gooeyToast } from '@/components/ui/goey-toaster'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { StatusBadge } from '@/components/ui/status-badge'
 import type { Database } from '@/types/supabase'
 
 type ConceptRow = Database['public']['Tables']['concepts']['Row']
@@ -229,38 +232,23 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
       </nav>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Batch de ads</h1>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className={`flex items-center gap-1.5 text-sm font-medium ${statusCfg.color}`}>
-              {statusCfg.icon}
-              {statusCfg.label}
-            </span>
-            <span className="text-muted-foreground/40">·</span>
-            <span className="text-sm text-muted-foreground">
-              {concepts.length > 0 ? concepts.length : batch.total_concepts} conceptos
-            </span>
-            {batch.status === 'done' && (
-              <>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="text-sm text-muted-foreground">{doneImages} imágenes</span>
-              </>
-            )}
-          </div>
-        </div>
-
+      <PageHeader
+        title="Batch de ads"
+        description={`${concepts.length > 0 ? concepts.length : batch.total_concepts} conceptos${batch.status === 'done' ? ` · ${doneImages} imágenes` : ''}`}
+      >
+        <StatusBadge status={batch.status} />
         {hasImages && (
-          <button
+          <Button
             onClick={handleDownloadAll}
             disabled={isDownloadingAll}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+            variant="outline"
+            size="sm"
           >
             <Download size={14} />
             {isDownloadingAll ? 'Descargando...' : `Descargar todo (${doneImages})`}
-          </button>
+          </Button>
         )}
-      </div>
+      </PageHeader>
 
       {/* Progress bar */}
       {isGeneratingImages && (

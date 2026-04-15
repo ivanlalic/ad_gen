@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js"
 import { LayoutDashboard, Store, Settings, LogOut } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { gooeyToast } from "@/components/ui/goey-toaster"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 interface SidebarProps {
   user: User
@@ -69,9 +70,11 @@ export function Sidebar({ user }: SidebarProps) {
       {/* User footer */}
       <div className="px-3 py-3 border-t border-sidebar-border space-y-1">
         <div className="flex items-center gap-2.5 px-3 py-2">
-          <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
-            {avatarLetter}
-          </div>
+          <Avatar size="sm">
+            <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-semibold">
+              {avatarLetter}
+            </AvatarFallback>
+          </Avatar>
           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
         </div>
         <button
