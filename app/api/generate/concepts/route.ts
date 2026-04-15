@@ -259,10 +259,6 @@ Generá ${totalConcepts} conceptos ahora.`
       max_tokens: 8192,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
-    }, {
-      headers: {
-        'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15'
-      }
     })
 
     const rawText = message.content
