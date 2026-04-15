@@ -157,14 +157,14 @@ export async function POST(req: NextRequest) {
 
   // Build tone description
   const toneAdjectives = product.tone_adjectives?.join(', ') ?? niche?.toneAdjectives.join(', ') ?? 'directo'
-  const wordsAvoid = product.words_avoid?.length > 0
-    ? `Evitá estas palabras: ${product.words_avoid.join(', ')}`
+  const wordsAvoid = (product.words_avoid?.length ?? 0) > 0
+    ? `Evitá estas palabras: ${(product.words_avoid ?? []).join(', ')}`
     : ''
-  const claimsAllowed = product.claims_allowed?.length > 0
-    ? `Claims permitidos: ${product.claims_allowed.join(', ')}`
+  const claimsAllowed = (product.claims_allowed?.length ?? 0) > 0
+    ? `Claims permitidos: ${(product.claims_allowed ?? []).join(', ')}`
     : ''
-  const claimsForbidden = product.claims_forbidden?.length > 0
-    ? `Claims PROHIBIDOS: ${product.claims_forbidden.join(', ')}`
+  const claimsForbidden = (product.claims_forbidden?.length ?? 0) > 0
+    ? `Claims PROHIBIDOS: ${(product.claims_forbidden ?? []).join(', ')}`
     : ''
 
   // Build reviews text
