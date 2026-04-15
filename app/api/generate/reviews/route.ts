@@ -61,7 +61,8 @@ REGLAS CRÍTICAS:
 - PROHIBIDO: inventar porcentajes, estadísticas médicas, claims de cura
 - Cada review debe sonar como una persona real diferente, no genérica
 
-OUTPUT: responde SOLO con un JSON array válido, sin texto adicional, sin markdown:
+OUTPUT: responde SOLO con un JSON array válido, sin texto adicional, sin markdown.
+IMPORTANTE: El JSON debe ser estrictamente válido. No incluyas saltos de línea literales dentro de los strings (usá \\n si es necesario) ni comillas sin escapar.
 [{"reviewer_name":"...","age":35,"text":"...","rating":5}]`
 
   const userPrompt = `Producto: ${product.name}
@@ -90,12 +91,19 @@ Generá las 20 reviews ahora.`
       return NextResponse.json({ error: 'Invalid Claude response' }, { status: 500 })
     }
 
-    const reviews = JSON.parse(match[0]) as Array<{
-      reviewer_name: string
-      age: number
-      text: string
-      rating: number
-    }>
+    let reviews;
+    try {
+      reviews = JSON.parse(match[0]) as Array<{
+        reviewer_name: string
+        age: number
+        text: string
+        rating: number
+      }>
+    } catch (parseError) {
+      console.error('Error al parsear el JSON de Claude en reviews:', parseError);
+      console.error('Últimos 100 caracteres recibidos:', match[0].substring(match[0].length - 100));
+      return NextResponse.json({ error: 'Claude devolvió un JSON incompleto o inválido para las reviews.' }, { status: 500 })
+    }
 
     return NextResponse.json({ reviews })
   } catch (err) {

@@ -232,7 +232,8 @@ ${distributionText}
 10. nb2_prompt: seguí la estructura [LIGHTING], [CAMERA], [SUBJECT], [COMPOSITION], [TEXT OVERLAY], [STYLE], [BRAND COLORS], [ASPECT RATIO], [NEGATIVE]
 ${pinnedSection}
 
-OUTPUT: respondé SOLO con un JSON array válido, sin texto adicional, sin markdown:
+OUTPUT: respondé SOLO con un JSON array válido, sin texto adicional, sin markdown.
+IMPORTANTE: El JSON debe ser estrictamente válido. No incluyas saltos de línea literales dentro de los strings (usá \\n si es necesario) ni comillas sin escapar.
 [{"template_number":1,"template_name":"Review Card","headline":"...","body_copy":"...","visual_description":"...","source_grounding":"...","nb2_prompt":"..."}]`
 
   const userPrompt = `Producto: ${product.name}
@@ -258,6 +259,10 @@ Generá ${totalConcepts} conceptos ahora.`
       max_tokens: 8192,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
+    }, {
+      headers: {
+        'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15'
+      }
     })
 
     const rawText = message.content
@@ -271,16 +276,24 @@ Generá ${totalConcepts} conceptos ahora.`
       return NextResponse.json({ error: 'Invalid Claude response' }, { status: 500 })
     }
 
-    const rawConcepts = JSON.parse(match[0]) as Array<{
-      template_number: number
-      template_name: string
-      headline: string
-      body_copy: string
-      visual_description: string
-      source_grounding: string
-      nb2_prompt?: string
-      is_pinned?: boolean
-    }>
+    let rawConcepts;
+    try {
+      rawConcepts = JSON.parse(match[0]) as Array<{
+        template_number: number
+        template_name: string
+        headline: string
+        body_copy: string
+        visual_description: string
+        source_grounding: string
+        nb2_prompt?: string
+        is_pinned?: boolean
+      }>
+    } catch (parseError) {
+      console.error('Error al parsear el JSON de Claude:', parseError);
+      console.error('Últimos 100 caracteres recibidos:', match[0].substring(match[0].length - 100));
+      await updateBatchStatus(batchId, 'error');
+      return NextResponse.json({ error: 'Claude devolvió un JSON incompleto o muy largo. Intentá generando menos conceptos a la vez (ej: 10 o 20).' }, { status: 500 })
+    }
 
     // Validate source_grounding is not empty and map to camelCase for saveConcepts
     const validConcepts = rawConcepts
