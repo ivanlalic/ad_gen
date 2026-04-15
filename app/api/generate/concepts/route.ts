@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
-import { TEMPLATES, distributeTemplates, templateUsesNBPro } from '@/lib/constants/templates'
+import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
 import { updateBatchStatus, saveConcepts } from '@/lib/actions/batches'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -211,7 +211,7 @@ CONTEXTO DEL PAÍS:
 PRODUCTO:
 - Nombre: ${product.name}
 - Nicho: ${niche?.label ?? product.niche}
-- Audiencia: ${sexLabel}, ${product.target_age_min ?? 25}-${product.target_age_max ?? 55} años
+- Audiencia: ${sexLabel}, ${product.target_age_min}-${product.target_age_max} años
 - Tono de voz: ${toneAdjectives}
 - Colores de marca: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}
 ${wordsAvoid ? '\n' + wordsAvoid : ''}
@@ -261,8 +261,8 @@ Generá ${totalConcepts} conceptos ahora.`
     })
 
     const rawText = message.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { type: 'text'; text: string }).text)
+      .filter((b: { type: string }) => b.type === 'text')
+      .map((b: { type: 'text'; text: string }) => b.text)
       .join('')
 
     // Extract JSON array from response
@@ -271,39 +271,40 @@ Generá ${totalConcepts} conceptos ahora.`
       return NextResponse.json({ error: 'Invalid Claude response' }, { status: 500 })
     }
 
-    let concepts = JSON.parse(match[0]) as Array<{
+    const rawConcepts = JSON.parse(match[0]) as Array<{
       template_number: number
       template_name: string
       headline: string
       body_copy: string
       visual_description: string
       source_grounding: string
-      nb2_prompt: string
+      nb2_prompt?: string
+      is_pinned?: boolean
     }>
 
-    // Validate source_grounding is not empty
-    concepts = concepts.filter(c => c.source_grounding?.trim().length > 0)
-
-    // Add is_pinned flag to first concept if pinned
-    if (pinnedConceptText && concepts.length > 0) {
-      concepts[0].is_pinned = true
-    }
-
-    // Build NB2 prompts
-    const conceptsWithPrompts = concepts.map(c => ({
-      ...c,
-      nb2_prompt: buildNB2Prompt(c, product, batch, niche),
-    }))
+    // Validate source_grounding is not empty and map to camelCase for saveConcepts
+    const validConcepts = rawConcepts
+      .filter(c => c.source_grounding?.trim().length > 0)
+      .map((c, idx) => ({
+        templateNumber: c.template_number,
+        templateName: c.template_name,
+        headline: c.headline,
+        bodyCopy: c.body_copy,
+        visualDescription: c.visual_description,
+        sourceGrounding: c.source_grounding,
+        nb2Prompt: buildNB2Prompt(c as any, product, batch, niche),
+        isPinned: pinnedConceptText && idx === 0 ? true : (c.is_pinned ?? false),
+      }))
 
     // Save concepts to DB
-    await saveConcepts(batchId, conceptsWithPrompts)
+    await saveConcepts(batchId, validConcepts)
 
     // Update batch status
     await updateBatchStatus(batchId, batch.generate_images ? 'generating_images' : 'done')
 
     return NextResponse.json({
-      concepts: conceptsWithPrompts,
-      count: conceptsWithPrompts.length,
+      concepts: validConcepts,
+      count: validConcepts.length,
     })
   } catch (err) {
     console.error('Claude concepts error:', err)
