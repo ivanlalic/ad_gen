@@ -125,11 +125,61 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-bricolage), var(--font-sans), sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
   }
   code, pre, .font-mono {
     font-family: var(--font-jetbrains-mono), var(--font-mono), monospace;
+  }
+
+  /* Scrollbar styling — thin, dark-themed */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(1 0 0 / 0.12);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(1 0 0 / 0.2);
+  }
+}
+
+@layer utilities {
+  /* Glass surface */
+  .glass {
+    background: oklch(0.13 0.006 264 / 0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid oklch(1 0 0 / 0.08);
+    box-shadow: 0 0 0 0.5px oklch(1 0 0 / 0.05) inset;
+  }
+
+  /* Glow on primary accent */
+  .glow-primary {
+    box-shadow: 0 0 24px oklch(0.63 0.22 264 / 0.25), 0 0 48px oklch(0.63 0.22 264 / 0.10);
+  }
+
+  /* Gradient border trick */
+  .border-gradient {
+    position: relative;
+  }
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, oklch(0.63 0.22 264 / 0.4), oklch(1 0 0 / 0.06), oklch(0.55 0.22 290 / 0.3));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
   }
 }
