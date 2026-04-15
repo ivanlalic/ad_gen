@@ -253,12 +253,14 @@ ${buildTemplatesDescription()}
 Generá ${totalConcepts} conceptos ahora.`
 
   try {
-    const message = await anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 32000,
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
     })
+
+    const message = await stream.finalMessage()
 
     const rawText = message.content
       .filter((b) => b.type === 'text')
