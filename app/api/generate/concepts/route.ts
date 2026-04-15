@@ -331,8 +331,9 @@ Generá ${totalConcepts} conceptos ahora.`
       count: validConcepts.length,
     })
   } catch (err) {
-    console.error('Claude concepts error:', err)
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error('Claude concepts error:', detail, err)
     await supabase.from('batches').update({ status: 'error' }).eq('id', batchId)
-    return NextResponse.json({ error: 'Generation failed', detail: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return NextResponse.json({ error: detail }, { status: 500 })
   }
 }
