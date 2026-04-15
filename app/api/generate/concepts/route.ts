@@ -261,8 +261,8 @@ Generá ${totalConcepts} conceptos ahora.`
     })
 
     const rawText = message.content
-      .filter((b: { type: string }) => b.type === 'text')
-      .map((b: { type: 'text'; text: string }) => b.text)
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { type: 'text'; text: string }).text)
       .join('')
 
     // Extract JSON array from response

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBatch } from '@/lib/actions/batches'
 import { gooeyToast } from '@/components/ui/goey-toaster'
-import { TEMPLATES, distributeTemplates, templateUsesNBPro } from '@/lib/constants/templates'
+import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
 
