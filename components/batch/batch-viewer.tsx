@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Download, Loader2, CheckCircle2, AlertCircle, Clock, Trash2 } from 'lucide-react'
+import { Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react'
 import { ConceptCard } from '@/components/batch/concept-card'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { PageHeader } from '@/components/ui/page-header'
@@ -80,6 +80,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const [imageProgress, setImageProgress] = useState(0)
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState<string | null>(null)
 
   const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
@@ -213,6 +214,26 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.status, batch.generate_images, batch.id])
 
+  async function handleRegenerateImages() {
+    setIsRegenerating(true)
+    try {
+      const res = await fetch('/api/batches/regenerate-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: batch.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      // Reset the loop ref so it can restart when status becomes generating_images
+      imageLoopStarted.current = false
+      router.refresh()
+    } catch (err) {
+      gooeyToast.error(`Error al regenerar: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
+
   async function handleDelete() {
     if (!confirm('¿Borrar este batch y todos sus conceptos? Esta acción no se puede deshacer.')) return
     setIsDeleting(true)
@@ -256,6 +277,8 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const isGeneratingImages = batch.status === 'generating_images'
   const isLoadingConcepts = (batch.status === 'generating_concepts' || batch.status === 'queued') && concepts.length === 0
   const hasImages = doneImages > 0
+  const errorImages = concepts.filter((c) => c.image_status === 'error').length
+  const canRegenerateImages = batch.generate_images && errorImages > 0 && !isGeneratingImages
 
   return (
     <div className="p-6 sm:p-8 max-w-7xl">
@@ -288,6 +311,17 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         description={`${concepts.length > 0 ? concepts.length : batch.total_concepts} conceptos${batch.status === 'done' ? ` · ${doneImages} imágenes` : ''}`}
       >
         <StatusBadge status={batch.status} />
+        {canRegenerateImages && (
+          <Button
+            onClick={handleRegenerateImages}
+            disabled={isRegenerating}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw size={14} className={isRegenerating ? 'animate-spin' : ''} />
+            {isRegenerating ? 'Reiniciando...' : `Regenerar imágenes (${errorImages})`}
+          </Button>
+        )}
         {hasImages && (
           <Button
             onClick={handleDownloadAll}

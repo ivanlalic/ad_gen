@@ -13,6 +13,7 @@ import {
   Check,
   Pin,
 } from 'lucide-react'
+import { gooeyToast } from '@/components/ui/goey-toaster'
 
 interface ConceptCardProps {
   concept: {
@@ -69,18 +70,30 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
     setIsRetrying(true)
     try {
       // Reset concept to pending
-      await fetch(`/api/concepts/${concept.id}`, {
+      const patchRes = await fetch(`/api/concepts/${concept.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'retry' }),
       })
-      // Directly generate this concept
-      await fetch('/api/generate/images', {
+      if (!patchRes.ok) {
+        const err = await patchRes.json().catch(() => ({}))
+        throw new Error(err.error || `Error resetting concept (${patchRes.status})`)
+      }
+
+      // Generate this concept
+      const genRes = await fetch('/api/generate/images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batchId: concept.batch_id, conceptId: concept.id }),
       })
+      if (!genRes.ok) {
+        const err = await genRes.json().catch(() => ({}))
+        throw new Error(err.error || `Error generando imagen (${genRes.status})`)
+      }
+
       router.refresh()
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error al regenerar imagen')
     } finally {
       setIsRetrying(false)
     }
