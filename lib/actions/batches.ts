@@ -15,6 +15,8 @@ export interface CreateBatchData {
   seed?: number
   generateImages: boolean
   pinnedConceptText?: string
+  keyOffers?: string
+  selectedTemplates?: number[]
 }
 
 export async function createBatch(data: CreateBatchData) {
@@ -47,6 +49,8 @@ export async function createBatch(data: CreateBatchData) {
       nb2_seed: data.seed ?? null,
       generate_images: data.generateImages,
       pinned_concept_text: data.pinnedConceptText ?? null,
+      key_offers: data.keyOffers ?? null,
+      selected_templates: data.selectedTemplates ?? null,
     })
     .select('id')
     .single()

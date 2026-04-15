@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           generate_images: boolean
           id: string
+          key_offers: string | null
           nb2_aspect_ratios: string[]
           nb2_model: string
           nb2_negative_prompt: string | null
@@ -28,6 +29,7 @@ export type Database = {
           nb2_style_preset: string | null
           pinned_concept_text: string | null
           product_id: string
+          selected_templates: number[] | null
           status: string
           total_concepts: number
         }
@@ -37,6 +39,7 @@ export type Database = {
           created_at?: string
           generate_images?: boolean
           id?: string
+          key_offers?: string | null
           nb2_aspect_ratios?: string[]
           nb2_model?: string
           nb2_negative_prompt?: string | null
@@ -44,6 +47,7 @@ export type Database = {
           nb2_style_preset?: string | null
           pinned_concept_text?: string | null
           product_id: string
+          selected_templates?: number[] | null
           status?: string
           total_concepts?: number
         }
@@ -53,6 +57,7 @@ export type Database = {
           created_at?: string
           generate_images?: boolean
           id?: string
+          key_offers?: string | null
           nb2_aspect_ratios?: string[]
           nb2_model?: string
           nb2_negative_prompt?: string | null
@@ -60,6 +65,7 @@ export type Database = {
           nb2_style_preset?: string | null
           pinned_concept_text?: string | null
           product_id?: string
+          selected_templates?: number[] | null
           status?: string
           total_concepts?: number
         }

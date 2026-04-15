@@ -79,6 +79,8 @@ export function BatchStudio({ product }: BatchStudioProps) {
 
   // Form state
   const [totalConcepts, setTotalConcepts] = useState(20)
+  const [keyOffers, setKeyOffers] = useState('')
+  const [selectedTemplates, setSelectedTemplates] = useState<number[]>(TEMPLATES.map(t => t.number))
   const [aspectRatios, setAspectRatios] = useState<string[]>(['1:1'])
   const [adaptFormats, setAdaptFormats] = useState(false)
   const [nb2Model, setNb2Model] = useState('gemini-3.1-flash-image-preview')
@@ -103,10 +105,18 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const productPhotosCount = product.product_inputs.filter(i => i.type === 'product_photo').length
   const reviewsCount = product.product_inputs.filter(i => i.type === 'review').length
 
+  function toggleTemplate(num: number) {
+    setSelectedTemplates((prev: number[]) =>
+      prev.includes(num)
+        ? prev.length > 1 ? prev.filter((n: number) => n !== num) : prev
+        : [...prev, num].sort((a, b) => a - b)
+    )
+  }
+
   function toggleAspectRatio(value: string) {
-    setAspectRatios(prev =>
+    setAspectRatios((prev: string[]) =>
       prev.includes(value)
-        ? prev.filter(v => v !== value)
+        ? prev.filter((v: string) => v !== value)
         : [...prev, value]
     )
   }
@@ -134,6 +144,8 @@ export function BatchStudio({ product }: BatchStudioProps) {
         seed: seed ? parseInt(seed, 10) : undefined,
         generateImages,
         pinnedConceptText: pinnedConceptText || undefined,
+        keyOffers: keyOffers.trim() || undefined,
+        selectedTemplates: selectedTemplates.length < TEMPLATES.length ? selectedTemplates : undefined,
       })
 
       gooeyToast.update(toastId, {
@@ -229,10 +241,72 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
         </section>
 
-        {/* 2. Formatos */}
+        {/* 2. Ofertas y mensajes clave */}
+        <section>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            2. Ofertas y mensajes clave
+          </h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            Claude los incluirá en el copy donde sea relevante. Ej: "Envío gratis", "Paga al recibir", "Oferta 4x1".
+          </p>
+          <textarea
+            value={keyOffers}
+            onChange={e => setKeyOffers(e.target.value)}
+            placeholder={"Envío gratis\nPaga al recibir\nOferta 4x1 este mes"}
+            rows={3}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </section>
+
+        {/* 3. Tipos de anuncio */}
+        <section>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            3. Tipos de anuncio
+          </h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            Seleccioná qué tipos de ads generar. {selectedTemplates.length}/{TEMPLATES.length} activos.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {TEMPLATES.map(t => {
+              const active = selectedTemplates.includes(t.number)
+              return (
+                <button
+                  key={t.number}
+                  onClick={() => toggleTemplate(t.number)}
+                  title={t.description}
+                  className={[
+                    'px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors duration-150',
+                    active
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border bg-card text-muted-foreground hover:border-primary/40',
+                  ].join(' ')}
+                >
+                  {t.number}. {t.name}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => setSelectedTemplates(TEMPLATES.map(t => t.number))}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Seleccionar todos
+            </button>
+            <span className="text-muted-foreground/40">·</span>
+            <button
+              onClick={() => setSelectedTemplates([5])}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Solo producto
+            </button>
+          </div>
+        </section>
+
+        {/* 4. Formatos */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            2. Formatos
+            4. Formatos
           </h2>
           <div className="grid grid-cols-3 gap-2 mb-3">
             {ASPECT_RATIOS.map(ratio => (
@@ -277,10 +351,10 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </label>
         </section>
 
-        {/* 3. Modelo NB2 */}
+        {/* 5. Modelo NB2 */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            3. Modelo de imagen
+            5. Modelo de imagen
           </h2>
           <div className="grid grid-cols-2 gap-2">
             {NB2_MODELS.map(model => (
@@ -301,10 +375,10 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
         </section>
 
-        {/* 4. Style preset */}
+        {/* 6. Style preset */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            4. Estilo visual
+            6. Estilo visual
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {STYLE_PRESETS.map(preset => (
@@ -325,10 +399,10 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
         </section>
 
-        {/* 5. Negative prompt + seed */}
+        {/* 7. Negative prompt + seed */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            5. Avanzado
+            7. Avanzado
           </h2>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -355,10 +429,10 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
         </section>
 
-        {/* 6. Inspiración visual */}
+        {/* 8. Inspiración visual */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            6. Inspiración visual <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
+            8. Inspiración visual <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
           </h2>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">

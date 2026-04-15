@@ -155,15 +155,19 @@ export const TEMPLATES: Template[] = [
  * Distribuye las plantillas proporcionalmente según la cantidad de conceptos.
  * Ej: 20 conceptos → cada template aparece al menos 1 vez, las primeras 5 aparecen 2 veces.
  */
-export function distributeTemplates(totalConcepts: number): number[] {
-  const templateNumbers: number[] = []
-  const baseCount = Math.floor(totalConcepts / TEMPLATES.length)
-  const remainder = totalConcepts % TEMPLATES.length
+export function distributeTemplates(totalConcepts: number, selectedTemplateNumbers?: number[]): number[] {
+  const pool = selectedTemplateNumbers && selectedTemplateNumbers.length > 0
+    ? TEMPLATES.filter(t => selectedTemplateNumbers.includes(t.number))
+    : TEMPLATES
 
-  for (let i = 0; i < TEMPLATES.length; i++) {
+  const templateNumbers: number[] = []
+  const baseCount = Math.floor(totalConcepts / pool.length)
+  const remainder = totalConcepts % pool.length
+
+  for (let i = 0; i < pool.length; i++) {
     const count = baseCount + (i < remainder ? 1 : 0)
     for (let j = 0; j < count; j++) {
-      templateNumbers.push(TEMPLATES[i].number)
+      templateNumbers.push(pool[i].number)
     }
   }
 

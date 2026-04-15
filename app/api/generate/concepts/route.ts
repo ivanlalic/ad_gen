@@ -166,6 +166,10 @@ export async function POST(req: NextRequest) {
     ? `Claims PROHIBIDOS: ${(product.claims_forbidden ?? []).join(', ')}`
     : ''
 
+  const keyOffersText = batch.key_offers?.trim()
+    ? `OFERTAS Y MENSAJES CLAVE para este batch (OBLIGATORIO incluirlos en el copy donde sea relevante):\n${batch.key_offers}`
+    : ''
+
   // Build reviews text
   const reviewsText = reviews.length > 0
     ? reviews.map((r: any) => r.content_text).filter(Boolean).join('\n\n')
@@ -181,8 +185,11 @@ export async function POST(req: NextRequest) {
     ? comments.map((c: any) => c.content_text).filter(Boolean).join('\n')
     : ''
 
-  // Distribute templates
-  const templateDistribution = distributeTemplates(totalConcepts)
+  // Distribute templates (using selected subset if provided)
+  const selectedTemplates = (batch.selected_templates && batch.selected_templates.length > 0)
+    ? batch.selected_templates
+    : undefined
+  const templateDistribution = distributeTemplates(totalConcepts, selectedTemplates)
 
   // Build pinned concept section
   const pinnedSection = pinnedConceptText
@@ -216,6 +223,7 @@ PRODUCTO:
 ${wordsAvoid ? '\n' + wordsAvoid : ''}
 ${claimsAllowed ? '\n' + claimsAllowed : ''}
 ${claimsForbidden ? '\n' + claimsForbidden : ''}
+${keyOffersText ? '\n' + keyOffersText : ''}
 
 REGLAS CRÍTICAS:
 1. Cada concepto DEBE tener source_grounding no vacío — trazá el origen de cada idea a un review, winning ad, comentario o insight del producto
