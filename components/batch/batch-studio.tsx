@@ -138,39 +138,11 @@ export function BatchStudio({ product }: BatchStudioProps) {
 
       gooeyToast.update(toastId, {
         title: '✓ Batch creado',
-        description: 'Generando conceptos con Claude...',
-      })
-
-      // Call the concepts API
-      const res = await fetch('/api/generate/concepts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          batchId,
-          productId: product.id,
-          totalConcepts,
-          pinnedConceptText: pinnedConceptText || undefined,
-        }),
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        gooeyToast.update(toastId, {
-          title: 'Error generando conceptos',
-          description: error.error || 'Intentá de nuevo',
-          type: 'error',
-        })
-        // Navigate anyway — concepts may have been partially saved
-        router.push(`/batch/${batchId}`)
-        return
-      }
-
-      gooeyToast.update(toastId, {
-        title: '✓ Conceptos generados',
-        description: generateImages ? 'Generando imágenes con NB2...' : 'Batch completo (solo texto)',
+        description: 'Abriendo batch...',
         type: 'success',
       })
 
+      // Navigate immediately — batch page handles concept generation
       router.push(`/batch/${batchId}`)
     } catch (err) {
       gooeyToast.update(toastId, {

@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Download, Loader2, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import { Download, Loader2, CheckCircle2, AlertCircle, Clock, Trash2 } from 'lucide-react'
 import { ConceptCard } from '@/components/batch/concept-card'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { deleteBatch } from '@/lib/actions/batches'
 import type { Database } from '@/types/supabase'
 
 type ConceptRow = Database['public']['Tables']['concepts']['Row']
@@ -35,9 +36,9 @@ interface BatchViewerProps {
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   queued: {
-    label: 'En cola',
-    icon: <Clock size={13} />,
-    color: 'text-muted-foreground',
+    label: 'Iniciando...',
+    icon: <Loader2 size={13} className="animate-spin" />,
+    color: 'text-yellow-400',
   },
   generating_concepts: {
     label: 'Generando conceptos...',
@@ -76,13 +77,46 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const router = useRouter()
   const imageLoopStarted = useRef(false)
   const conceptPollStarted = useRef(false)
+  const conceptGenerationStarted = useRef(false)
   const [imageProgress, setImageProgress] = useState(0)
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [generationStep, setGenerationStep] = useState<string | null>(null)
 
   const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
   const totalImages = concepts.length || batch.total_concepts
   const doneImages = concepts.filter((c) => c.image_status === 'done').length
   const progressPct = totalImages > 0 ? Math.round((imageProgress / totalImages) * 100) : 0
+
+  // Trigger concept generation when batch is queued
+  useEffect(() => {
+    if (batch.status !== 'queued') return
+    if (conceptGenerationStarted.current) return
+    conceptGenerationStarted.current = true
+
+    setGenerationStep('Generando conceptos con Claude...')
+
+    fetch('/api/generate/concepts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchId: batch.id,
+        productId: batch.products?.id,
+        totalConcepts: batch.total_concepts,
+      }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        gooeyToast.error(err.error || 'Error generando conceptos')
+      }
+      setGenerationStep(null)
+      router.refresh()
+    }).catch(() => {
+      gooeyToast.error('Error de conexión generando conceptos')
+      setGenerationStep(null)
+      router.refresh()
+    })
+  }, [batch.status, batch.id, batch.products?.id, batch.total_concepts, router])
 
   // Poll for concept generation
   useEffect(() => {
@@ -180,6 +214,18 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.status, batch.generate_images, batch.id])
 
+  async function handleDelete() {
+    if (!confirm('¿Borrar este batch y todos sus conceptos? Esta acción no se puede deshacer.')) return
+    setIsDeleting(true)
+    try {
+      await deleteBatch(batch.id)
+      router.push(product ? `/stores/${product.store_id}` : '/stores')
+    } catch {
+      gooeyToast.error('Error al borrar el batch')
+      setIsDeleting(false)
+    }
+  }
+
   async function handleDownloadAll() {
     const withImages = concepts.filter((c) => c.image_status === 'done' && c.image_url)
     if (withImages.length === 0) return
@@ -203,7 +249,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const statusCfg = STATUS_CONFIG[batch.status] ?? { label: batch.status, icon: null, color: 'text-muted-foreground' }
   const product = batch.products
   const isGeneratingImages = batch.status === 'generating_images'
-  const isLoadingConcepts = batch.status === 'generating_concepts' && concepts.length === 0
+  const isLoadingConcepts = (batch.status === 'generating_concepts' || batch.status === 'queued') && concepts.length === 0
   const hasImages = doneImages > 0
 
   return (
@@ -248,6 +294,16 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
             {isDownloadingAll ? 'Descargando...' : `Descargar todo (${doneImages})`}
           </Button>
         )}
+        <Button
+          onClick={handleDelete}
+          disabled={isDeleting}
+          variant="outline"
+          size="sm"
+          className="text-red-400 hover:text-red-300 border-red-400/20 hover:border-red-400/40"
+        >
+          <Trash2 size={14} />
+          {isDeleting ? 'Borrando...' : 'Borrar batch'}
+        </Button>
       </PageHeader>
 
       {/* Progress bar */}
@@ -270,7 +326,10 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
       {isLoadingConcepts ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-          <p className="text-sm text-muted-foreground">Generando conceptos con Claude...</p>
+          <p className="text-sm text-muted-foreground">
+            {generationStep ?? 'Generando conceptos con Claude...'}
+          </p>
+          <p className="text-xs text-muted-foreground/60">Esto puede tardar hasta 60 segundos</p>
         </div>
       ) : concepts.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

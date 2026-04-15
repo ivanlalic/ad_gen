@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
       config: {
         numberOfImages: 1,
         aspectRatio,
-        negativePrompt: batch.nb2_negative_prompt ?? 'blurry, low quality',
         outputMimeType: 'image/jpeg',
       },
     })
