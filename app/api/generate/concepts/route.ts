@@ -286,7 +286,7 @@ Generá ${totalConcepts} conceptos ahora.`
     } catch (parseError) {
       console.error('Error al parsear el JSON de Claude:', parseError);
       console.error('Últimos 100 caracteres recibidos:', match[0].substring(match[0].length - 100));
-      await updateBatchStatus(batchId, 'error');
+      await supabase.from('batches').update({ status: 'error' }).eq('id', batchId);
       return NextResponse.json({ error: 'Claude devolvió un JSON incompleto o muy largo. Intentá generando menos conceptos a la vez (ej: 10 o 20).' }, { status: 500 })
     }
 
