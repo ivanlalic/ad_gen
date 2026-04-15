@@ -9,11 +9,14 @@ export function PageHeader({ title, description, children, gradient = true }: Pa
   return (
     <div className="flex items-start justify-between gap-4 mb-10 flex-wrap">
       <div>
-        <h1 className={`text-4xl font-bold tracking-tight leading-tight ${gradient ? 'text-gradient' : 'text-foreground'}`}>
+        <h1
+          className={`text-4xl font-extrabold tracking-tighter leading-none ${gradient ? 'text-gradient' : 'text-foreground'}`}
+          style={{ letterSpacing: '-0.03em' }}
+        >
           {title}
         </h1>
         {description && (
-          <p className="text-sm text-muted-foreground mt-2">{description}</p>
+          <p className="text-sm text-muted-foreground mt-2 font-normal tracking-normal">{description}</p>
         )}
       </div>
       {children && (

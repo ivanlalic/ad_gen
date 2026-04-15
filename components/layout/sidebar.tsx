@@ -55,9 +55,9 @@ export function Sidebar({ user }: SidebarProps) {
           >
             A
           </div>
-          <span className="text-foreground font-bold tracking-tight text-sm select-none">
+          <span className="text-foreground font-extrabold tracking-tighter text-sm select-none" style={{ letterSpacing: '-0.04em' }}>
             Ad<span className="text-gradient">Gen</span>
-            <span className="text-muted-foreground font-light ml-1 text-xs">2.0</span>
+            <span className="text-muted-foreground font-light ml-1.5 text-xs tracking-normal">2.0</span>
           </span>
         </div>
       </div>
