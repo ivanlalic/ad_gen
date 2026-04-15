@@ -1,17 +1,35 @@
+import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { BatchViewer } from '@/components/batch/batch-viewer'
+
 interface Props {
   params: Promise<{ id: string }>
 }
 
 export default async function BatchPage({ params }: Props) {
   const { id } = await params
+  const supabase = await createClient()
 
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-semibold text-foreground">Batch</h1>
-      <p className="mt-2 text-muted-foreground text-sm font-mono text-xs">{id}</p>
-      <p className="mt-1 text-muted-foreground text-sm">
-        Batch Viewer con grid de imágenes en tiempo real — Fase 5–6
-      </p>
-    </div>
-  )
+  const { data: batch } = await supabase
+    .from('batches')
+    .select(`
+      id, status, total_concepts, generate_images, nb2_aspect_ratios, nb2_model,
+      nb2_style_preset, nb2_negative_prompt,
+      products (
+        id, name, hex_primary, store_id,
+        stores (name)
+      )
+    `)
+    .eq('id', id)
+    .single()
+
+  if (!batch) notFound()
+
+  const { data: concepts } = await supabase
+    .from('concepts')
+    .select('*')
+    .eq('batch_id', id)
+    .order('template_number', { ascending: true })
+
+  return <BatchViewer batch={batch as any} concepts={concepts ?? []} />
 }
