@@ -175,10 +175,31 @@ export async function POST(req: NextRequest) {
     ? reviews.map((r: any) => r.content_text).filter(Boolean).join('\n\n')
     : 'No hay reviews disponibles.'
 
-  // Build winning ads description
+  // Fetch winning ad images as base64 (max 5) for multimodal input
+  const winningAdsWithImages = winningAds.filter((i: any) => i.file_url)
+  const winningAdImageParts: Array<{ type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } }> = []
+
+  for (const ad of winningAdsWithImages.slice(0, 5)) {
+    try {
+      const imgRes = await fetch(ad.file_url)
+      if (!imgRes.ok) continue
+      const imgBuffer = await imgRes.arrayBuffer()
+      const imgBase64 = Buffer.from(imgBuffer).toString('base64')
+      const rawMime = imgRes.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
+      const mimeType = (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(rawMime)
+        ? rawMime
+        : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+      winningAdImageParts.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: imgBase64 } })
+    } catch {
+      // skip if fetch fails
+    }
+  }
+
   const winningAdsText = winningAds.length > 0
-    ? `Hay ${winningAds.length} winning ads subidos como imágenes de referencia. Analizá su estructura, hook y ángulo emocional.`
-    : 'No hay winning ads subidos.'
+    ? winningAdImageParts.length > 0
+      ? `Se adjuntan ${winningAdImageParts.length} winning ads como imágenes. Analizá su estructura visual, hook, copy y ángulo emocional para inspirar los conceptos.`
+      : `Hay ${winningAds.length} winning ads referenciados (sin imagen disponible). Considerá su descripción al crear conceptos.`
+    : 'No hay winning ads disponibles.'
 
   // Build comments text
   const commentsText = comments.length > 0
@@ -261,10 +282,19 @@ ${buildTemplatesDescription()}
 Generá ${totalConcepts} conceptos ahora.`
 
   try {
+    // Build multimodal message: text prompt + winning ad images
+    const messageContent: Array<
+      { type: 'text'; text: string } |
+      { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } }
+    > = [
+      { type: 'text', text: userPrompt },
+      ...winningAdImageParts,
+    ]
+
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 32000,
-      messages: [{ role: 'user', content: userPrompt }],
+      messages: [{ role: 'user', content: messageContent }],
       system: systemPrompt,
     })
 

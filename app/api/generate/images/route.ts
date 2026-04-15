@@ -68,14 +68,47 @@ export async function POST(req: NextRequest) {
     .eq('id', targetConceptId)
 
   try {
-    // Use the model name directly — gemini-3.1-flash-image-preview / gemini-3-pro-image-preview
     const model = batch.nb2_model ?? 'gemini-3.1-flash-image-preview'
     const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
     const prompt = concept.nb2_prompt ?? concept.visual_description ?? ''
 
+    // Fetch product photo to use as reference image for Gemini
+    let productPhotoBase64: string | null = null
+    let productPhotoMime = 'image/jpeg'
+
+    try {
+      const { data: productInputs } = await supabase
+        .from('product_inputs')
+        .select('file_url')
+        .eq('product_id', batch.product_id)
+        .eq('type', 'product_photo')
+        .not('file_url', 'is', null)
+        .limit(1)
+
+      const photoUrl = productInputs?.[0]?.file_url
+      if (photoUrl) {
+        const imgRes = await fetch(photoUrl)
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer()
+          productPhotoBase64 = Buffer.from(buf).toString('base64')
+          productPhotoMime = imgRes.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
+        }
+      }
+    } catch {
+      // Continue without product photo
+    }
+
+    // Build content parts — text prompt + optional product photo reference
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+      { text: prompt },
+    ]
+    if (productPhotoBase64) {
+      parts.push({ inlineData: { mimeType: productPhotoMime, data: productPhotoBase64 } })
+    }
+
     const response = await ai.models.generateContent({
       model,
-      contents: prompt,
+      contents: [{ role: 'user', parts }],
       config: {
         responseModalities: ['IMAGE'],
         imageConfig: { aspectRatio },
