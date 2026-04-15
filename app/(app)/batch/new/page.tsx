@@ -27,6 +27,7 @@ export default async function NewBatchPage({ searchParams }: Props) {
     .single()
 
   if (!product) notFound()
+  if (!product.niche || !product.stores) notFound()
 
-  return <BatchStudio product={product} />
+  return <BatchStudio product={product as any} />
 }
