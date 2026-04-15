@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
 import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
-import { updateBatchStatus, saveConcepts } from '@/lib/actions/batches'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -141,7 +140,7 @@ export async function POST(req: NextRequest) {
   const country = getCountryConfig(store?.country ?? 'ES')
 
   // Update batch status
-  await updateBatchStatus(batchId, 'generating_concepts')
+  await supabase.from('batches').update({ status: 'generating_concepts' }).eq('id', batchId)
 
   // Gather inputs
   const winningAds = inputs.filter((i: any) => i.type === 'winning_ad')
@@ -306,10 +305,26 @@ Generá ${totalConcepts} conceptos ahora.`
       }))
 
     // Save concepts to DB
-    await saveConcepts(batchId, validConcepts)
+    const rows = validConcepts.map((c) => ({
+      batch_id: batchId,
+      template_number: c.templateNumber,
+      template_name: c.templateName,
+      headline: c.headline,
+      body_copy: c.bodyCopy,
+      visual_description: c.visualDescription,
+      source_grounding: c.sourceGrounding,
+      nb2_prompt: c.nb2Prompt,
+      is_pinned: c.isPinned ?? false,
+      image_status: 'pending',
+    }))
+    const { error: insertError } = await supabase.from('concepts').insert(rows)
+    if (insertError) throw new Error(insertError.message)
 
     // Update batch status
-    await updateBatchStatus(batchId, batch.generate_images ? 'generating_images' : 'done')
+    await supabase
+      .from('batches')
+      .update({ status: batch.generate_images ? 'generating_images' : 'done' })
+      .eq('id', batchId)
 
     return NextResponse.json({
       concepts: validConcepts,
@@ -317,7 +332,7 @@ Generá ${totalConcepts} conceptos ahora.`
     })
   } catch (err) {
     console.error('Claude concepts error:', err)
-    await updateBatchStatus(batchId, 'error')
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
+    await supabase.from('batches').update({ status: 'error' }).eq('id', batchId)
+    return NextResponse.json({ error: 'Generation failed', detail: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
 }

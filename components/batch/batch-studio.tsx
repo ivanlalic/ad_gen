@@ -155,7 +155,14 @@ export function BatchStudio({ product }: BatchStudioProps) {
 
       if (!res.ok) {
         const error = await res.json()
-        throw new Error(error.error || 'Error generando conceptos')
+        gooeyToast.update(toastId, {
+          title: 'Error generando conceptos',
+          description: error.error || 'Intentá de nuevo',
+          type: 'error',
+        })
+        // Navigate anyway — concepts may have been partially saved
+        router.push(`/batch/${batchId}`)
+        return
       }
 
       gooeyToast.update(toastId, {
