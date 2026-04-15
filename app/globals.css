@@ -172,12 +172,12 @@
     box-shadow: 0 0 0 0.5px oklch(1 0 0 / 0.05) inset;
   }
 
-  /* Gradient text — indigo → violet */
+  /* Gradient text — white → indigo → violet, high contrast */
   .text-gradient {
     background: linear-gradient(135deg,
-      oklch(0.80 0.18 264) 0%,
-      oklch(0.72 0.22 280) 50%,
-      oklch(0.68 0.20 295) 100%
+      oklch(0.97 0.003 264) 0%,
+      oklch(0.78 0.20 264) 40%,
+      oklch(0.65 0.26 290) 100%
     );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -202,28 +202,39 @@
       0 2px 8px oklch(0 0 0 / 0.4);
   }
 
-  /* Gradient border trick */
+  /* Gradient border */
   .border-gradient {
     position: relative;
+    border: none !important;
+    --tw-ring-shadow: none !important;
   }
   .border-gradient::before {
     content: '';
     position: absolute;
     inset: 0;
+    z-index: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, oklch(0.63 0.22 264 / 0.5), oklch(1 0 0 / 0.06), oklch(0.55 0.22 290 / 0.4));
+    background: linear-gradient(135deg,
+      oklch(0.63 0.22 264 / 0.55) 0%,
+      oklch(1 0 0 / 0.08) 50%,
+      oklch(0.55 0.22 290 / 0.45) 100%
+    );
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
   }
+  .border-gradient > * {
+    position: relative;
+    z-index: 1;
+  }
 
   /* Mesh gradient background for content areas */
   .bg-mesh {
     background:
-      radial-gradient(ellipse 100% 70% at 60% -10%, oklch(0.63 0.22 264 / 0.10) 0%, transparent 55%),
-      radial-gradient(ellipse 70% 50% at 100% 80%, oklch(0.55 0.22 290 / 0.07) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 40% at 0% 50%, oklch(0.50 0.18 245 / 0.06) 0%, transparent 45%);
+      radial-gradient(ellipse 80% 50% at 70% 0%, oklch(0.63 0.22 264 / 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 95% 90%, oklch(0.55 0.22 290 / 0.14) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 35% at 5% 60%, oklch(0.50 0.18 245 / 0.10) 0%, transparent 45%);
   }
 }
