@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
+import { Download, Loader2, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
 import { ConceptCard } from '@/components/batch/concept-card'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import type { Database } from '@/types/supabase'
@@ -15,35 +17,71 @@ interface BatchViewerProps {
     status: string
     generate_images: boolean
     total_concepts: number
-    nb2_aspect_ratios: string[]
+    nb2_aspect_ratios: string[] | null
+    nb2_model: string | null
     products: {
       id: string
       name: string
       hex_primary: string | null
       store_id: string
-      stores: { name: string }
-    }
+      stores: { name: string } | null
+    } | null
   }
   concepts: ConceptRow[]
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  queued: { label: 'En cola', color: 'text-muted-foreground' },
-  generating_concepts: { label: 'Generando conceptos...', color: 'text-yellow-400' },
-  generating_images: { label: 'Generando imágenes...', color: 'text-blue-400' },
-  done: { label: 'Completo', color: 'text-green-400' },
-  error: { label: 'Error', color: 'text-red-400' },
+const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+  queued: {
+    label: 'En cola',
+    icon: <Clock size={13} />,
+    color: 'text-muted-foreground',
+  },
+  generating_concepts: {
+    label: 'Generando conceptos...',
+    icon: <Loader2 size={13} className="animate-spin" />,
+    color: 'text-yellow-400',
+  },
+  generating_images: {
+    label: 'Generando imágenes...',
+    icon: <Loader2 size={13} className="animate-spin" />,
+    color: 'text-blue-400',
+  },
+  done: {
+    label: 'Completo',
+    icon: <CheckCircle2 size={13} />,
+    color: 'text-green-400',
+  },
+  error: {
+    label: 'Error',
+    icon: <AlertCircle size={13} />,
+    color: 'text-red-400',
+  },
 }
 
-const MAX_RETRIES = 60
+const MAX_RETRIES = 80
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.04, duration: 0.3 },
+  }),
+}
 
 export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const router = useRouter()
   const imageLoopStarted = useRef(false)
   const conceptPollStarted = useRef(false)
-  const [isGeneratingImages, setIsGeneratingImages] = useState(false)
+  const [imageProgress, setImageProgress] = useState(0)
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false)
 
-  // Poll for concept generation completion
+  const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
+  const totalImages = concepts.length || batch.total_concepts
+  const doneImages = concepts.filter((c) => c.image_status === 'done').length
+  const progressPct = totalImages > 0 ? Math.round((imageProgress / totalImages) * 100) : 0
+
+  // Poll for concept generation
   useEffect(() => {
     if (batch.status !== 'generating_concepts') return
     if (conceptPollStarted.current) return
@@ -53,12 +91,8 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     const poll = () => {
       if (retries >= MAX_RETRIES) return
       retries++
-      setTimeout(() => {
-        router.refresh()
-        poll()
-      }, 4000)
+      setTimeout(() => { router.refresh(); poll() }, 4000)
     }
-
     poll()
   }, [batch.status, router])
 
@@ -70,27 +104,24 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     imageLoopStarted.current = true
 
     let retries = 0
-    const doneCount = concepts.filter(c => c.image_status === 'done').length
-    const totalImages = concepts.filter(c => c.image_status !== null).length || batch.total_concepts
+    let completed = doneImages
 
     const toastId = gooeyToast('Generando imágenes...', {
       duration: Infinity,
-      description: `0 / ${totalImages} completadas`,
+      description: `${completed} / ${totalImages} completadas`,
     })
 
-    setIsGeneratingImages(true)
+    setImageProgress(completed)
 
-    async function runLoop(completedSoFar: number) {
+    async function runLoop() {
       if (retries >= MAX_RETRIES) {
         gooeyToast.update(toastId, {
-          title: 'Error',
-          description: 'Se alcanzó el límite de reintentos',
+          title: 'Tiempo agotado',
+          description: 'Alcanzado el límite de reintentos',
           type: 'error',
         })
-        setIsGeneratingImages(false)
         return
       }
-
       retries++
 
       try {
@@ -101,10 +132,9 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         })
 
         if (!res.ok) {
-          // Error on this concept — continue loop
-          await new Promise(r => setTimeout(r, 1000))
+          await new Promise((r) => setTimeout(r, 1500))
           router.refresh()
-          runLoop(completedSoFar)
+          runLoop()
           return
         }
 
@@ -121,71 +151,132 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
             description: `${totalImages} imágenes generadas`,
             type: 'success',
           })
-          setIsGeneratingImages(false)
+          setImageProgress(totalImages)
           router.refresh()
           return
         }
 
-        const newCompleted = completedSoFar + 1
+        completed += 1
+        setImageProgress(completed)
         gooeyToast.update(toastId, {
           title: 'Generando imágenes...',
-          description: `${newCompleted} / ${totalImages} completadas`,
+          description: `${completed} / ${totalImages} completadas`,
         })
 
-        await new Promise(r => setTimeout(r, 1000))
+        await new Promise((r) => setTimeout(r, 800))
         router.refresh()
-        runLoop(newCompleted)
+        runLoop()
       } catch {
-        await new Promise(r => setTimeout(r, 1000))
+        await new Promise((r) => setTimeout(r, 1500))
         router.refresh()
-        runLoop(completedSoFar)
+        runLoop()
       }
     }
 
-    runLoop(doneCount)
+    runLoop()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.status, batch.generate_images, batch.id])
 
-  const statusCfg = STATUS_CONFIG[batch.status] ?? { label: batch.status, color: 'text-muted-foreground' }
-  const trimmedId = batch.id.slice(0, 8)
-  const product = batch.products
+  async function handleDownloadAll() {
+    const withImages = concepts.filter((c) => c.image_status === 'done' && c.image_url)
+    if (withImages.length === 0) return
+    setIsDownloadingAll(true)
+    try {
+      for (const concept of withImages) {
+        const a = document.createElement('a')
+        a.href = concept.image_url!
+        a.download = `concept-${concept.id.slice(0, 8)}.jpg`
+        a.target = '_blank'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        await new Promise((r) => setTimeout(r, 200))
+      }
+    } finally {
+      setIsDownloadingAll(false)
+    }
+  }
 
+  const statusCfg = STATUS_CONFIG[batch.status] ?? { label: batch.status, icon: null, color: 'text-muted-foreground' }
+  const product = batch.products
+  const isGeneratingImages = batch.status === 'generating_images'
   const isLoadingConcepts = batch.status === 'generating_concepts' && concepts.length === 0
+  const hasImages = doneImages > 0
 
   return (
     <div className="p-6 sm:p-8 max-w-7xl">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6 flex-wrap">
+      <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6 flex-wrap">
         <Link href="/stores" className="hover:text-foreground transition-colors">
           Tiendas
         </Link>
-        <span>/</span>
-        <Link href={`/stores/${product.store_id}`} className="hover:text-foreground transition-colors">
-          {product.stores.name}
-        </Link>
-        <span>/</span>
-        <Link href={`/stores/${product.store_id}/products/${product.id}`} className="hover:text-foreground transition-colors">
-          {product.name}
-        </Link>
-        <span>/</span>
-        <span className="text-foreground font-mono">Batch {trimmedId}</span>
-      </div>
+        <span className="opacity-40">/</span>
+        {product && (
+          <>
+            <Link href={`/stores/${product.store_id}`} className="hover:text-foreground transition-colors">
+              {product.stores?.name ?? 'Tienda'}
+            </Link>
+            <span className="opacity-40">/</span>
+            <Link href={`/stores/${product.store_id}`} className="hover:text-foreground transition-colors">
+              {product.name}
+            </Link>
+            <span className="opacity-40">/</span>
+          </>
+        )}
+        <span className="text-foreground font-mono text-xs bg-secondary px-2 py-0.5 rounded-md">
+          Batch {batch.id.slice(0, 8)}
+        </span>
+      </nav>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Batch de ads</h1>
-          <div className="flex items-center gap-3 mt-1">
-            <span className={`text-sm font-medium ${statusCfg.color}`}>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={`flex items-center gap-1.5 text-sm font-medium ${statusCfg.color}`}>
+              {statusCfg.icon}
               {statusCfg.label}
             </span>
-            <span className="text-muted-foreground text-sm">·</span>
+            <span className="text-muted-foreground/40">·</span>
             <span className="text-sm text-muted-foreground">
               {concepts.length > 0 ? concepts.length : batch.total_concepts} conceptos
             </span>
+            {batch.status === 'done' && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-sm text-muted-foreground">{doneImages} imágenes</span>
+              </>
+            )}
           </div>
         </div>
+
+        {hasImages && (
+          <button
+            onClick={handleDownloadAll}
+            disabled={isDownloadingAll}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+          >
+            <Download size={14} />
+            {isDownloadingAll ? 'Descargando...' : `Descargar todo (${doneImages})`}
+          </button>
+        )}
       </div>
+
+      {/* Progress bar */}
+      {isGeneratingImages && (
+        <div className="mb-8">
+          <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+            <span>Progreso de imágenes</span>
+            <span>{imageProgress} / {totalImages}</span>
+          </div>
+          <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Concept grid */}
       {isLoadingConcepts ? (
@@ -194,13 +285,10 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           <p className="text-sm text-muted-foreground">Generando conceptos con Claude...</p>
         </div>
       ) : concepts.length === 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex flex-col rounded-xl border border-border bg-card overflow-hidden"
-            >
-              <div className="bg-muted/40 animate-pulse" style={{ height: '168px' }} />
+            <div key={i} className="flex flex-col rounded-xl border border-border bg-card overflow-hidden">
+              <div className="animate-pulse bg-muted/40" style={{ paddingBottom: '100%' }} />
               <div className="p-4 space-y-3">
                 <div className="h-3 bg-muted/40 animate-pulse rounded w-1/3" />
                 <div className="h-4 bg-muted/40 animate-pulse rounded w-3/4" />
@@ -211,9 +299,17 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {concepts.map(concept => (
-            <ConceptCard key={concept.id} concept={concept} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {concepts.map((concept, i) => (
+            <motion.div
+              key={concept.id}
+              custom={i}
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              <ConceptCard concept={concept} aspectRatio={aspectRatio} />
+            </motion.div>
           ))}
         </div>
       )}

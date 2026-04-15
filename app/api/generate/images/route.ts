@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { batchId } = body
+  const { batchId, conceptId: requestedConceptId } = body
 
   if (!batchId) {
     return NextResponse.json({ error: 'batchId required' }, { status: 400 })
@@ -33,16 +33,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
   }
 
-  // Find first pending concept
-  const { data: pendingConcepts } = await supabase
-    .from('concepts')
-    .select('*')
-    .eq('batch_id', batchId)
-    .eq('image_status', 'pending')
-    .order('template_number', { ascending: true })
-    .limit(1)
+  // Use explicit conceptId (retry) or pick first pending concept
+  let concept: { id: string; nb2_prompt: string | null; visual_description: string | null; template_number: number | null } | null = null
 
-  const concept = pendingConcepts?.[0]
+  if (requestedConceptId) {
+    const { data } = await supabase
+      .from('concepts')
+      .select('*')
+      .eq('id', requestedConceptId)
+      .eq('batch_id', batchId)
+      .single()
+    concept = data
+  } else {
+    const { data: pendingConcepts } = await supabase
+      .from('concepts')
+      .select('*')
+      .eq('batch_id', batchId)
+      .eq('image_status', 'pending')
+      .order('template_number', { ascending: true })
+      .limit(1)
+    concept = pendingConcepts?.[0] ?? null
+  }
 
   // No pending concepts left — mark batch done
   if (!concept) {
@@ -53,13 +64,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ done: true })
   }
 
-  const conceptId = concept.id
+  const targetConceptId = concept.id
 
   // Mark this concept as generating
   await supabase
     .from('concepts')
     .update({ image_status: 'generating' })
-    .eq('id', conceptId)
+    .eq('id', targetConceptId)
 
   try {
     const model = MODEL_MAP[batch.nb2_model] ?? 'imagen-3.0-fast-generate-001'
@@ -83,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     // Upload to Supabase Storage via admin client (bypasses RLS)
     const imageBuffer = Buffer.from(imageBytes, 'base64')
-    const storagePath = `${user.id}/${batchId}/${conceptId}.jpg`
+    const storagePath = `${user.id}/${batchId}/${targetConceptId}.jpg`
 
     await supabaseAdmin.storage
       .from('generated-images')
@@ -100,7 +111,7 @@ export async function POST(req: NextRequest) {
     await supabase
       .from('concepts')
       .update({ image_url: publicUrl, image_status: 'done' })
-      .eq('id', conceptId)
+      .eq('id', targetConceptId)
 
     // Check remaining pending concepts
     const { count: remainingCount } = await supabase
@@ -118,19 +129,19 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      conceptId,
+      targetConceptId,
       imageUrl: publicUrl,
       remainingCount: remainingCount ?? 0,
     })
   } catch (err) {
-    console.error('[generate/images] Error generating image for concept', conceptId, err)
+    console.error('[generate/images] Error generating image for concept', targetConceptId, err)
 
     // Mark concept as error so loop can continue with others
     await supabase
       .from('concepts')
       .update({ image_status: 'error' })
-      .eq('id', conceptId)
+      .eq('id', targetConceptId)
 
-    return NextResponse.json({ error: 'Image generation failed', conceptId }, { status: 500 })
+    return NextResponse.json({ error: 'Image generation failed', targetConceptId }, { status: 500 })
   }
 }
