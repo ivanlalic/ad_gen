@@ -316,12 +316,13 @@ Generá ${totalConcepts} conceptos ahora.`
           },
         })),
       ]
-      const msg = await anthropic.messages.create({
+      const stream = anthropic.messages.stream({
         model: conceptModel,
         max_tokens: 32000,
         system: systemPrompt,
         messages: [{ role: 'user', content: claudeParts }],
       })
+      const msg = await stream.finalMessage()
       rawText = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('')
     } else {
       const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
