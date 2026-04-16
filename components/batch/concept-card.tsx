@@ -61,6 +61,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   const [isRetrying, setIsRetrying] = useState(false)
   const [isGenerating916, setIsGenerating916] = useState(false)
   const [imageUrl916, setImageUrl916] = useState<string | null>(concept.image_url_9_16)
+  const [modalView, setModalView] = useState<'1:1' | '9:16'>('1:1')
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
 
@@ -299,7 +300,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
           )}
           {canDownload && (
             <button
-              onClick={() => setShowImageModal(true)}
+              onClick={() => { setModalView('1:1'); setShowImageModal(true) }}
               title="Ver imagen grande"
               className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors backdrop-blur-sm"
             >
@@ -413,8 +414,16 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
                 src={imageUrl916}
                 alt="9:16 version"
                 className="h-12 w-auto rounded object-cover border border-border cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => window.open(imageUrl916!, '_blank')}
+                onClick={() => { setModalView('9:16'); setShowImageModal(true) }}
               />
+              <button
+                type="button"
+                onClick={() => { setModalView('9:16'); setShowImageModal(true) }}
+                className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+                title="Ver 9:16 en grande"
+              >
+                <Eye size={11} />
+              </button>
               <a
                 href={imageUrl916}
                 download={`concept-${concept.id.slice(0, 8)}-9x16.jpg`}
@@ -560,14 +569,51 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
       <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
         <DialogContent className="max-w-[90vw] w-fit max-h-[92vh] p-0 overflow-hidden flex flex-col">
           <DialogTitle className="sr-only">{concept.headline ?? 'Imagen del concepto'}</DialogTitle>
-          {concept.image_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={concept.image_url}
-              alt={concept.headline ?? 'Concept image'}
-              className="block max-h-[80vh] w-auto object-contain"
-            />
+
+          {/* Version toggle — only show if both exist */}
+          {concept.image_url && imageUrl916 && (
+            <div className="flex items-center gap-1 px-3 pt-3 shrink-0">
+              {(['1:1', '9:16'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setModalView(v)}
+                  className={[
+                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
+                    modalView === v
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-muted-foreground hover:text-foreground',
+                  ].join(' ')}
+                >
+                  {v}
+                </button>
+              ))}
+              <a
+                href={modalView === '9:16' ? imageUrl916! : concept.image_url!}
+                download={`concept-${concept.id.slice(0, 8)}${modalView === '9:16' ? '-9x16' : ''}.jpg`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                title="Descargar"
+              >
+                <Download size={14} />
+              </a>
+            </div>
           )}
+
+          {/* Image */}
+          {(() => {
+            const src = modalView === '9:16' && imageUrl916 ? imageUrl916 : concept.image_url
+            return src ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={src}
+                alt={concept.headline ?? 'Concept image'}
+                className="block max-h-[80vh] w-auto object-contain"
+              />
+            ) : null
+          })()}
+
           {concept.headline && (
             <div className="px-4 py-3 shrink-0">
               <p className="text-sm font-semibold text-foreground">{concept.headline}</p>
