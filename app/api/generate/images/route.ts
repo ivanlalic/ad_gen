@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { batchId, conceptId: requestedConceptId } = body
+  const { batchId, conceptId: requestedConceptId, aspectRatio: aspectRatioOverride } = body
 
   if (!batchId) {
     return NextResponse.json({ error: 'batchId required' }, { status: 400 })
@@ -63,15 +63,18 @@ export async function POST(req: NextRequest) {
 
   const targetConceptId = concept.id
 
-  // Mark this concept as generating
-  await supabase
-    .from('concepts')
-    .update({ image_status: 'generating' })
-    .eq('id', targetConceptId)
+  // Mark this concept as generating (skip for 9:16 override — it has its own image_url_9_16 field)
+  if (!aspectRatioOverride || aspectRatioOverride !== '9:16') {
+    await supabase
+      .from('concepts')
+      .update({ image_status: 'generating' })
+      .eq('id', targetConceptId)
+  }
 
   try {
     const model = batch.nb2_model ?? 'gemini-3.1-flash-image-preview'
-    const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
+    const aspectRatio = aspectRatioOverride ?? batch.nb2_aspect_ratios?.[0] ?? '1:1'
+    const is916 = aspectRatio === '9:16' && aspectRatioOverride === '9:16'
     const prompt = concept.nb2_prompt ?? concept.visual_description ?? ''
 
     // Fetch product photo to use as reference image for Gemini
@@ -137,7 +140,8 @@ export async function POST(req: NextRequest) {
     // Upload to Supabase Storage via admin client (bypasses RLS)
     const ext = mimeType.includes('jpeg') ? 'jpg' : 'png'
     const imageBuffer = Buffer.from(imageBytes, 'base64')
-    const storagePath = `${user.id}/${batchId}/${targetConceptId}.${ext}`
+    const suffix = is916 ? '_9x16' : ''
+    const storagePath = `${user.id}/${batchId}/${targetConceptId}${suffix}.${ext}`
 
     await supabaseAdmin.storage
       .from('generated-images')
@@ -149,6 +153,19 @@ export async function POST(req: NextRequest) {
     const { data: { publicUrl } } = supabaseAdmin.storage
       .from('generated-images')
       .getPublicUrl(storagePath)
+
+    if (is916) {
+      // Store in image_url_9_16, don't change image_status
+      await supabase
+        .from('concepts')
+        .update({ image_url_9_16: publicUrl })
+        .eq('id', targetConceptId)
+
+      return NextResponse.json({
+        targetConceptId,
+        imageUrl916: publicUrl,
+      })
+    }
 
     // Update concept with image URL and done status
     await supabase
@@ -179,11 +196,13 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[generate/images] Error generating image for concept', targetConceptId, err)
 
-    // Mark concept as error so loop can continue with others
-    await supabase
-      .from('concepts')
-      .update({ image_status: 'error' })
-      .eq('id', targetConceptId)
+    // Mark concept as error so loop can continue with others (skip for 9:16 — don't clobber existing status)
+    if (!aspectRatioOverride || aspectRatioOverride !== '9:16') {
+      await supabase
+        .from('concepts')
+        .update({ image_status: 'error' })
+        .eq('id', targetConceptId)
+    }
 
     return NextResponse.json({ error: String(err), targetConceptId }, { status: 500 })
   }

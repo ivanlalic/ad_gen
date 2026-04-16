@@ -26,6 +26,7 @@ interface ConceptCardProps {
     visual_description: string | null
     source_grounding: string
     image_url: string | null
+    image_url_9_16: string | null
     image_status: string | null
     is_pinned: boolean | null
     nb2_prompt: string | null
@@ -49,6 +50,8 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   const [showPrompt, setShowPrompt] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [isGenerating916, setIsGenerating916] = useState(false)
+  const [imageUrl916, setImageUrl916] = useState<string | null>(concept.image_url_9_16)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
 
@@ -97,6 +100,29 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
       gooeyToast.error(err instanceof Error ? err.message : 'Error al regenerar imagen')
     } finally {
       setIsRetrying(false)
+    }
+  }
+
+  async function handleGenerate916() {
+    if (isGenerating916) return
+    setIsGenerating916(true)
+    try {
+      const res = await fetch('/api/generate/images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: concept.batch_id, conceptId: concept.id, aspectRatio: '9:16' }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Error generando 9:16 (${res.status})`)
+      }
+      const data = await res.json()
+      if (data.imageUrl916) setImageUrl916(data.imageUrl916)
+      router.refresh()
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error al generar 9:16')
+    } finally {
+      setIsGenerating916(false)
     }
   }
 
@@ -204,6 +230,20 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
               <Eye size={15} />
             </button>
           )}
+          {canDownload && (
+            <button
+              onClick={handleGenerate916}
+              disabled={isGenerating916}
+              title="Generar versión 9:16"
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors backdrop-blur-sm disabled:opacity-50 text-[11px] font-medium leading-none"
+            >
+              {isGenerating916 ? (
+                <div className="w-3.5 h-3.5 rounded-full border border-white border-t-transparent animate-spin" />
+              ) : (
+                '9:16'
+              )}
+            </button>
+          )}
           <button
             onClick={handleDelete}
             disabled={isDeleting}
@@ -282,6 +322,36 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
             </button>
           </div>
         </div>
+
+        {/* 9:16 thumbnail */}
+        <AnimatePresence>
+          {imageUrl916 && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 pt-2 border-t border-border"
+            >
+              <span className="text-[10px] text-muted-foreground/60 shrink-0">9:16</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageUrl916}
+                alt="9:16 version"
+                className="h-12 w-auto rounded object-cover border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => window.open(imageUrl916!, '_blank')}
+              />
+              <a
+                href={imageUrl916}
+                download={`concept-${concept.id.slice(0, 8)}-9x16.jpg`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download size={11} />
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* NB2 Prompt expandable */}
         <AnimatePresence>
