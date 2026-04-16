@@ -293,27 +293,51 @@ ${buildTemplatesDescription()}
 Generá ${totalConcepts} conceptos ahora.`
 
   try {
-    // Build multimodal message: text prompt + winning ad images
-    const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-      { text: userPrompt },
-      ...winningAdImageParts,
-    ]
+    const conceptModel = batch.concept_model ?? 'gemini-3.1-flash-lite-preview'
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite-preview',
-      contents: [{ role: 'user', parts: userParts }],
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.8,
-      },
-    })
-
-    const rawText = response.text ?? ''
+    // Dispatch to Claude or Gemini based on model prefix
+    let rawText = ''
+    if (conceptModel.startsWith('claude-')) {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      const claudeParts: Array<
+        { type: 'text'; text: string } |
+        { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } }
+      > = [
+        { type: 'text', text: userPrompt },
+        ...winningAdImageParts.map(p => ({
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: (['image/jpeg','image/png','image/gif','image/webp'].includes(p.inlineData.mimeType) ? p.inlineData.mimeType : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+            data: p.inlineData.data,
+          },
+        })),
+      ]
+      const msg = await anthropic.messages.create({
+        model: conceptModel,
+        max_tokens: 32000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: claudeParts }],
+      })
+      rawText = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('')
+    } else {
+      const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+        { text: userPrompt },
+        ...winningAdImageParts,
+      ]
+      const response = await ai.models.generateContent({
+        model: conceptModel,
+        contents: [{ role: 'user', parts: userParts }],
+        config: { systemInstruction: systemPrompt, temperature: 0.8 },
+      })
+      rawText = response.text ?? ''
+    }
 
     // Extract JSON array from response
     const match = rawText.match(/\[[\s\S]*\]/)
     if (!match) {
-      return NextResponse.json({ error: 'Invalid Gemini response' }, { status: 500 })
+      return NextResponse.json({ error: 'Invalid model response — no JSON array found' }, { status: 500 })
     }
 
     let rawConcepts;

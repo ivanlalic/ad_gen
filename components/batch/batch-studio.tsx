@@ -13,6 +13,12 @@ import { getCountryConfig } from '@/lib/constants/countries'
 const COST_PER_CONCEPT_CLAUDE = 0.005 // ~$0.05-0.15 per 20 concepts
 const COST_PER_IMAGE_NB2 = 0.025 // ~$0.40-0.80 per 20 images
 
+const CONCEPT_MODELS = [
+  { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini Flash Lite', desc: 'Más rápido, más barato', badge: 'Recomendado' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku', desc: 'Rápido, copy sólido' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet', desc: 'Mejor calidad, más lento' },
+]
+
 interface ProductData {
   id: string
   name: string
@@ -84,6 +90,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const [aspectRatios, setAspectRatios] = useState<string[]>(['1:1'])
   const [adaptFormats, setAdaptFormats] = useState(false)
   const [nb2Model, setNb2Model] = useState('gemini-3.1-flash-image-preview')
+  const [conceptModel, setConceptModel] = useState('gemini-3.1-flash-lite-preview')
   const [stylePreset, setStylePreset] = useState('photorealistic')
   const [negativePrompt, setNegativePrompt] = useState(
     'blurry, low quality, distorted faces, wrong text, watermark, generic stock photo, plastic look'
@@ -139,6 +146,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
         aspectRatios,
         adaptFormats,
         nb2Model,
+        conceptModel,
         stylePreset,
         negativePrompt: negativePrompt || undefined,
         seed: seed ? parseInt(seed, 10) : undefined,
@@ -351,10 +359,42 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </label>
         </section>
 
-        {/* 5. Modelo NB2 */}
+        {/* 5. Modelo de conceptos */}
+        <section>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            5. Modelo de conceptos
+          </h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            Modelo que genera los copies y conceptos.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {CONCEPT_MODELS.map(model => (
+              <button
+                key={model.value}
+                onClick={() => setConceptModel(model.value)}
+                className={[
+                  'relative flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-colors duration-150',
+                  conceptModel === model.value
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border bg-card hover:border-primary/40',
+                ].join(' ')}
+              >
+                {model.badge && conceptModel === model.value && (
+                  <span className="absolute -top-2 right-2 px-1.5 py-0.5 bg-primary text-primary-foreground text-[9px] font-medium rounded-full">
+                    {model.badge}
+                  </span>
+                )}
+                <span className="text-xs font-semibold text-foreground">{model.label}</span>
+                <span className="text-[10px] text-muted-foreground">{model.desc}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* 6. Modelo NB2 */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            5. Modelo de imagen
+            6. Modelo de imagen
           </h2>
           <div className="grid grid-cols-2 gap-2">
             {NB2_MODELS.map(model => (
@@ -378,7 +418,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
         {/* 6. Style preset */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            6. Estilo visual
+            7. Estilo visual
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {STYLE_PRESETS.map(preset => (
@@ -402,7 +442,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
         {/* 7. Negative prompt + seed */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            7. Avanzado
+            8. Avanzado
           </h2>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -432,7 +472,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
         {/* 8. Inspiración visual */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            8. Inspiración visual <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
+            9. Inspiración visual <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
           </h2>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">

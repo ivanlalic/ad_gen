@@ -10,6 +10,7 @@ export interface CreateBatchData {
   aspectRatios: string[]
   adaptFormats: boolean
   nb2Model: string
+  conceptModel?: string
   stylePreset: string
   negativePrompt?: string
   seed?: number
@@ -49,6 +50,7 @@ export async function createBatch(data: CreateBatchData) {
       nb2_seed: data.seed ?? null,
       generate_images: data.generateImages,
       pinned_concept_text: data.pinnedConceptText ?? null,
+      concept_model: data.conceptModel ?? null,
       key_offers: data.keyOffers ?? null,
       selected_templates: data.selectedTemplates ?? null,
     })

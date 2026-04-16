@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           adapt_formats: boolean
           completed_at: string | null
+          concept_model: string | null
           created_at: string
           generate_images: boolean
           id: string
@@ -36,6 +37,7 @@ export type Database = {
         Insert: {
           adapt_formats?: boolean
           completed_at?: string | null
+          concept_model?: string | null
           created_at?: string
           generate_images?: boolean
           id?: string
@@ -54,6 +56,7 @@ export type Database = {
         Update: {
           adapt_formats?: boolean
           completed_at?: string | null
+          concept_model?: string | null
           created_at?: string
           generate_images?: boolean
           id?: string
