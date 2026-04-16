@@ -14,6 +14,7 @@ interface ProductPhoto {
 }
 
 interface ProductEditFormProps {
+  storeCountry?: string
   product: {
     id: string
     name: string
@@ -85,7 +86,7 @@ function TagInput({
   )
 }
 
-export function ProductEditForm({ product, productPhotos: initialPhotos }: ProductEditFormProps) {
+export function ProductEditForm({ product, productPhotos: initialPhotos, storeCountry = 'ES' }: ProductEditFormProps) {
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -127,7 +128,7 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
       const res = await fetch('/api/analyze-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: analyzeUrl.trim() }),
+        body: JSON.stringify({ url: analyzeUrl.trim(), country: storeCountry }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al analizar la URL')

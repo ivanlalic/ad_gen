@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@/lib/supabase/server'
+import { getCountryConfig } from '@/lib/constants/countries'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
@@ -28,7 +29,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { url } = await req.json()
+  const { url, country } = await req.json()
+  const countryConfig = country ? getCountryConfig(country) : undefined
+  const outputLanguage = countryConfig ? countryConfig.language : 'Español (España)'
 
   if (!url || !url.startsWith('http')) {
     return NextResponse.json({ error: 'URL inválida — debe comenzar con http:// o https://' }, { status: 400 })
@@ -56,6 +59,8 @@ export async function POST(req: NextRequest) {
   }
 
   const systemPrompt = `You are a product analyst for a direct-response ad agency. Extract product information from the page text and return ONLY a valid JSON object — no markdown, no explanation, no code blocks.
+
+IMPORTANT: All text fields (description, keyFeatures, uniqueValueProp, targetAudienceDescription, commonObjections, useCases, toneAdjectives) MUST be written in ${outputLanguage}. Regardless of what language the source page is in, always output in ${outputLanguage}.
 
 Available niches: ${VALID_NICHES.join(', ')}
 Available toneStyle values: directa, científica, empática, aspiracional

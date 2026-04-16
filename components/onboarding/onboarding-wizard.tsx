@@ -66,7 +66,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
     const res = await fetch('/api/analyze-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, country: storeData.country }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al analizar la URL')

@@ -21,7 +21,7 @@ export default async function ProductEditPage({ params }: Props) {
       claims_allowed, claims_forbidden, store_id,
       description, key_features, unique_value_prop,
       target_audience_description, common_objections, use_cases,
-      stores (name)
+      stores (name, country)
     `)
     .eq('id', productId)
     .eq('store_id', storeId)
@@ -37,6 +37,7 @@ export default async function ProductEditPage({ params }: Props) {
     .not('file_url', 'is', null)
 
   const storeName = (product as any).stores?.name ?? 'Tienda'
+  const storeCountry = (product as any).stores?.country ?? 'ES'
 
   return (
     <div className="p-6 sm:p-8 max-w-3xl">
@@ -60,6 +61,7 @@ export default async function ProductEditPage({ params }: Props) {
         <ProductEditForm
           product={product}
           productPhotos={productPhotos ?? []}
+          storeCountry={storeCountry}
         />
       </div>
     </div>
