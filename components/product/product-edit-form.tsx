@@ -93,6 +93,9 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [photos, setPhotos] = useState<ProductPhoto[]>(initialPhotos)
+  const [analyzeUrl, setAnalyzeUrl] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null)
 
   const [name, setName] = useState(product.name)
   const [niche, setNiche] = useState(product.niche ?? '')
@@ -113,6 +116,42 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
   const [targetAudienceDescription, setTargetAudienceDescription] = useState(product.target_audience_description ?? '')
   const [commonObjections, setCommonObjections] = useState(product.common_objections ?? '')
   const [useCases, setUseCases] = useState(product.use_cases ?? '')
+
+  async function handleAnalyzeUrl() {
+    if (!analyzeUrl.trim()) return
+    setAnalyzing(true)
+    setAnalyzeError(null)
+    try {
+      const res = await fetch('/api/analyze-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: analyzeUrl.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al analizar la URL')
+
+      if (data.name) setName(data.name)
+      if (data.niche) setNiche(data.niche)
+      if (data.description) setDescription(data.description)
+      if (data.keyFeatures) setKeyFeatures(data.keyFeatures)
+      if (data.uniqueValueProp) setUniqueValueProp(data.uniqueValueProp)
+      if (data.targetAudienceDescription) setTargetAudienceDescription(data.targetAudienceDescription)
+      if (data.commonObjections) setCommonObjections(data.commonObjections)
+      if (data.useCases) setUseCases(data.useCases)
+      if (data.hexPrimary) setHexPrimary(data.hexPrimary)
+      if (data.hexSecondary) setHexSecondary(data.hexSecondary)
+      if (data.toneAdjectives?.length) setToneAdjectives(data.toneAdjectives)
+      if (data.targetSex) setTargetSex(data.targetSex)
+      if (data.targetAgeMin) setAgeMin(data.targetAgeMin)
+      if (data.targetAgeMax) setAgeMax(data.targetAgeMax)
+
+      gooeyToast.success('Campos actualizados — revisá antes de guardar')
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : 'Error al analizar la URL')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
 
   async function handleSave() {
     if (!name.trim()) return
@@ -192,6 +231,41 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
 
   return (
     <div className="space-y-8 max-w-2xl">
+      {/* URL auto-fill */}
+      <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground">✨ Completar con IA</span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Pegá la URL de tu landing o de un competidor para actualizar todos los campos automáticamente.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="url"
+            placeholder="https://tuproducto.com"
+            value={analyzeUrl}
+            onChange={(e) => { setAnalyzeUrl(e.target.value); setAnalyzeError(null) }}
+            onKeyDown={(e) => e.key === 'Enter' && handleAnalyzeUrl()}
+            disabled={analyzing}
+            className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={handleAnalyzeUrl}
+            disabled={analyzing || !analyzeUrl.trim()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0 flex items-center gap-2"
+          >
+            {analyzing ? (
+              <>
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                Analizando...
+              </>
+            ) : 'Analizar'}
+          </button>
+        </div>
+        {analyzeError && <p className="text-xs text-red-400">{analyzeError}</p>}
+      </div>
+
       {/* Name */}
       <div className="space-y-1.5">
         <label className="text-sm font-medium text-foreground">Nombre del producto</label>

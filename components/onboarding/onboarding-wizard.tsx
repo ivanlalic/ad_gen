@@ -61,6 +61,44 @@ export function OnboardingWizard() {
     }
   }
 
+  // URL → AI auto-fill all product fields
+  async function handleAnalyzeUrl(url: string) {
+    const res = await fetch('/api/analyze-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Error al analizar la URL')
+
+    setProductData({
+      name: data.name ?? productData.name,
+      niche: data.niche ?? productData.niche,
+      description: data.description ?? '',
+      keyFeatures: data.keyFeatures ?? '',
+    })
+    setAudienceData({
+      targetSex: data.targetSex ?? 'unisex',
+      targetAgeMin: data.targetAgeMin ?? 25,
+      targetAgeMax: data.targetAgeMax ?? 50,
+      targetAudienceDescription: data.targetAudienceDescription ?? '',
+    })
+    setColorData({
+      hexPrimary: data.hexPrimary ?? '#6366f1',
+      hexSecondary: data.hexSecondary ?? '#1a1a24',
+    })
+    setToneData((prev) => ({
+      ...prev,
+      style: data.toneStyle ?? 'directa',
+      customTags: data.toneAdjectives ?? [],
+      uniqueValueProp: data.uniqueValueProp ?? '',
+      commonObjections: data.commonObjections ?? '',
+      useCases: data.useCases ?? '',
+    }))
+
+    gooeyToast.success('Campos completados con IA — revisá y ajustá')
+  }
+
   function canAdvance(): boolean {
     switch (step) {
       case 0: return storeData.name.trim().length > 0 && storeData.country.length > 0
@@ -172,7 +210,7 @@ export function OnboardingWizard() {
 
   const stepProps = [
     <StepStore key="store" data={storeData} onChange={setStoreData} />,
-    <StepProduct key="product" data={productData} onChange={handleNicheChange} />,
+    <StepProduct key="product" data={productData} onChange={handleNicheChange} onAnalyzeUrl={handleAnalyzeUrl} />,
     <StepAudience key="audience" data={audienceData} onChange={setAudienceData} />,
     <StepColors key="colors" niche={productData.niche} data={colorData} onChange={setColorData} />,
     <StepTone key="tone" data={toneData} onChange={setToneData} />,
