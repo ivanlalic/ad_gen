@@ -63,10 +63,11 @@ function buildNB2Prompt(
     15: 'Bold CTA dominant, product visible, high contrast',
   }
 
-  // Truncate body copy to ~60 chars — ads are scanned, not read
-  const shortBody = concept.body_copy.length > 65
-    ? concept.body_copy.substring(0, 62).trimEnd() + '...'
-    : concept.body_copy
+  // Use first complete sentence of body copy — never truncate mid-phrase
+  const firstSentenceMatch = concept.body_copy.match(/^[^.!?]+[.!?]/)
+  const shortBody = firstSentenceMatch
+    ? firstSentenceMatch[0].trim()
+    : concept.body_copy.split('\n')[0].trim()
 
   const offerBadgeInstruction = batch.key_offers?.trim()
     ? `Include a high-contrast badge/banner in the image with this exact text: "${batch.key_offers.trim()}". Make it prominent and fully legible.`
@@ -268,7 +269,7 @@ REGLAS CRÍTICAS:
 ${distributionText}
 6. No saltes ninguna plantilla — el objetivo es variedad de ángulos
 7. Headlines cortos y punchy (máx 8 palabras)
-8. Body copy: 1-3 líneas, directo al beneficio
+8. Body copy: UNA sola oración completa, máx 12 palabras. Nunca cortes una frase. Terminá siempre con punto, signo de exclamación o interrogación.
 9. Visual description: describí la imagen en detalle para que un diseñador pueda crearla
 10. nb2_prompt: seguí la estructura [LIGHTING], [CAMERA], [SUBJECT], [COMPOSITION], [TEXT OVERLAY], [STYLE], [BRAND COLORS], [ASPECT RATIO], [NEGATIVE]
 ${pinnedSection}

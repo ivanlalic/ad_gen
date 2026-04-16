@@ -100,12 +100,14 @@ export async function POST(req: NextRequest) {
       // Continue without product photo
     }
 
-    // Build content parts — text prompt + optional product photo reference
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-      { text: prompt },
-    ]
+    // Build content parts — product photo first (reference), then text prompt
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = []
     if (productPhotoBase64) {
+      // Reference image goes FIRST so Gemini treats it as the visual anchor
       parts.push({ inlineData: { mimeType: productPhotoMime, data: productPhotoBase64 } })
+      parts.push({ text: `Use the product in the provided photo as the EXACT product shown in this ad image. Do not invent or replace the product — feature it prominently.\n\n${prompt}` })
+    } else {
+      parts.push({ text: prompt })
     }
 
     const response = await ai.models.generateContent({
