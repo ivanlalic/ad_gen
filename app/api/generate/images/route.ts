@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Use explicit conceptId (retry) or pick first pending concept
-  let concept: { id: string; nb2_prompt: string | null; visual_description: string | null; template_number: number | null } | null = null
+  let concept: { id: string; nb2_prompt: string | null; visual_description: string | null; template_number: number | null; image_url?: string | null } | null = null
 
   if (requestedConceptId) {
     const { data } = await supabase
@@ -83,48 +83,68 @@ export async function POST(req: NextRequest) {
     const model = batch.nb2_model ?? 'gemini-3.1-flash-image-preview'
     const aspectRatio = aspectRatioOverride ?? batch.nb2_aspect_ratios?.[0] ?? '1:1'
     const is916 = aspectRatio === '9:16' && aspectRatioOverride === '9:16'
-    const basePrompt = promptOverride ?? concept.nb2_prompt ?? concept.visual_description ?? ''
-    const prompt = correctionText ? `${basePrompt}\n\nCORRECTION: ${correctionText}` : basePrompt
 
-    // Fetch product photo to use as reference image for Gemini
-    let productPhotoBase64: string | null = null
-    let productPhotoMime = 'image/jpeg'
+    // Build content parts
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = []
 
-    try {
-      const { data: productInputs } = await supabase
-        .from('product_inputs')
-        .select('file_url')
-        .eq('product_id', batch.product_id)
-        .eq('type', 'product_photo')
-        .not('file_url', 'is', null)
-        .limit(1)
-
-      const photoUrl = productInputs?.[0]?.file_url
-      if (photoUrl) {
-        const imgRes = await fetch(photoUrl)
-        if (imgRes.ok) {
-          const buf = await imgRes.arrayBuffer()
-          productPhotoBase64 = Buffer.from(buf).toString('base64')
-          productPhotoMime = imgRes.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
+    if (is916) {
+      // 9:16 mode: send existing 1:1 image + simple recreation prompt
+      const existingImageUrl = concept.image_url
+      if (existingImageUrl) {
+        try {
+          const imgRes = await fetch(existingImageUrl)
+          if (imgRes.ok) {
+            const buf = await imgRes.arrayBuffer()
+            const base64 = Buffer.from(buf).toString('base64')
+            const mime = imgRes.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
+            parts.push({ inlineData: { mimeType: mime, data: base64 } })
+          }
+        } catch {
+          // Continue without existing image
         }
       }
-    } catch {
-      // Continue without product photo
-    }
-
-    // Build content parts — product photo first (reference), then correction image, then text prompt
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = []
-    if (productPhotoBase64) {
-      // Reference image goes FIRST so Gemini treats it as the visual anchor
-      parts.push({ inlineData: { mimeType: productPhotoMime, data: productPhotoBase64 } })
-    }
-    if (correctionImageBase64) {
-      parts.push({ inlineData: { mimeType: correctionImageMime ?? 'image/jpeg', data: correctionImageBase64 } })
-    }
-    if (productPhotoBase64) {
-      parts.push({ text: `Use the product in the provided photo as the EXACT product shown in this ad image. Do not invent or replace the product — feature it prominently.\n\n${prompt}` })
+      parts.push({ text: 'Recreate this exact ad for Instagram Stories / Reels — 9:16 vertical format. Keep all visual elements, text, colors, and style identical. Only adapt the composition and layout to fit the tall vertical canvas.' })
     } else {
-      parts.push({ text: prompt })
+      // Standard generation: product photo as anchor + nb2_prompt
+      const basePrompt = promptOverride ?? concept.nb2_prompt ?? concept.visual_description ?? ''
+      const prompt = correctionText ? `${basePrompt}\n\nCORRECTION: ${correctionText}` : basePrompt
+
+      let productPhotoBase64: string | null = null
+      let productPhotoMime = 'image/jpeg'
+
+      try {
+        const { data: productInputs } = await supabase
+          .from('product_inputs')
+          .select('file_url')
+          .eq('product_id', batch.product_id)
+          .eq('type', 'product_photo')
+          .not('file_url', 'is', null)
+          .limit(1)
+
+        const photoUrl = productInputs?.[0]?.file_url
+        if (photoUrl) {
+          const imgRes = await fetch(photoUrl)
+          if (imgRes.ok) {
+            const buf = await imgRes.arrayBuffer()
+            productPhotoBase64 = Buffer.from(buf).toString('base64')
+            productPhotoMime = imgRes.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
+          }
+        }
+      } catch {
+        // Continue without product photo
+      }
+
+      if (productPhotoBase64) {
+        parts.push({ inlineData: { mimeType: productPhotoMime, data: productPhotoBase64 } })
+      }
+      if (correctionImageBase64) {
+        parts.push({ inlineData: { mimeType: correctionImageMime ?? 'image/jpeg', data: correctionImageBase64 } })
+      }
+      if (productPhotoBase64) {
+        parts.push({ text: `Use the product in the provided photo as the EXACT product shown in this ad image. Do not invent or replace the product — feature it prominently.\n\n${prompt}` })
+      } else {
+        parts.push({ text: prompt })
+      }
     }
 
     const response = await ai.models.generateContent({
