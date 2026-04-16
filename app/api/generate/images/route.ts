@@ -209,23 +209,25 @@ export async function POST(req: NextRequest) {
       .from('generated-images')
       .getPublicUrl(storagePath)
 
+    const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`
+
     if (is916) {
       // Store in image_url_9_16, don't change image_status
       await supabase
         .from('concepts')
-        .update({ image_url_9_16: publicUrl })
+        .update({ image_url_9_16: cacheBustedUrl })
         .eq('id', targetConceptId)
 
       return NextResponse.json({
         targetConceptId,
-        imageUrl916: publicUrl,
+        imageUrl916: cacheBustedUrl,
       })
     }
 
     // Update concept with image URL and done status
     await supabase
       .from('concepts')
-      .update({ image_url: publicUrl, image_status: 'done' })
+      .update({ image_url: cacheBustedUrl, image_status: 'done' })
       .eq('id', targetConceptId)
 
     // Check remaining pending concepts
