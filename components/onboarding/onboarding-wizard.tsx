@@ -134,7 +134,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
 
   async function handleFinish() {
     setSaving(true)
-    const toastId = gooeyToast('Guardando tienda...', {
+    const toastId = gooeyToast(existingStoreId ? 'Guardando producto...' : 'Guardando tienda...', {
       duration: Infinity,
     })
 
@@ -230,7 +230,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
         type: 'success',
       })
 
-      router.push(existingStoreId ? `/stores/${existingStoreId}` : '/stores')
+      router.push(`/stores/${storeId}`)
       router.refresh()
     } catch (err) {
       gooeyToast.update(toastId, {
