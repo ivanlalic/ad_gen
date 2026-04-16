@@ -185,23 +185,32 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user')
 
-      const uploadFile = async (
-        file: File,
-        bucket: string,
-        inputType: 'winning_ad' | 'product_photo'
-      ) => {
-        const path = `${user.id}/${productId}/${Date.now()}-${file.name}`
-        const { error } = await supabase.storage.from(bucket).upload(path, file)
-        if (error) throw error
-        const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
-        await saveProductInput({ productId, type: inputType, fileUrl: publicUrl })
-      }
+      const allFiles = [
+        ...assetsData.winningAds.map((f) => ({ file: f, bucket: 'winning-ads', inputType: 'winning_ad' as const })),
+        ...assetsData.productPhotos.map((f) => ({ file: f, bucket: 'product-photos', inputType: 'product_photo' as const })),
+      ]
 
-      for (const file of assetsData.winningAds) {
-        await uploadFile(file, 'winning-ads', 'winning_ad')
-      }
-      for (const file of assetsData.productPhotos) {
-        await uploadFile(file, 'product-photos', 'product_photo')
+      for (let i = 0; i < allFiles.length; i++) {
+        const { file, bucket, inputType } = allFiles[i]
+        gooeyToast.update(toastId, {
+          title: `Subiendo archivo ${i + 1} / ${allFiles.length}`,
+          description: file.name,
+        })
+        try {
+          const path = `${user.id}/${productId}/${Date.now()}-${file.name}`
+          // 30s timeout per file
+          const uploadPromise = supabase.storage.from(bucket).upload(path, file)
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Upload timeout')), 30_000)
+          )
+          const { error } = await Promise.race([uploadPromise, timeoutPromise])
+          if (error) throw error
+          const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
+          await saveProductInput({ productId, type: inputType, fileUrl: publicUrl })
+        } catch (uploadErr) {
+          // Skip failed uploads — don't block product creation
+          console.warn(`Upload skipped (${file.name}):`, uploadErr)
+        }
       }
 
       // 4. Save reviews text
