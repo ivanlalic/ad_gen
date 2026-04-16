@@ -300,7 +300,7 @@ Generá ${totalConcepts} conceptos ahora.`
     ]
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-pro-preview-05-06',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: [{ role: 'user', parts: userParts }],
       config: {
         systemInstruction: systemPrompt,
