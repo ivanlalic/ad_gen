@@ -35,6 +35,13 @@ export const COUNTRIES: CountryConfig[] = [
     languageCode: 'es-CO',
     copyNotes: 'Tono cercano. Ej: "¡No te lo pierdas!"',
   },
+  {
+    code: 'PT',
+    label: 'Portugal',
+    language: 'Português (Portugal)',
+    languageCode: 'pt-PT',
+    copyNotes: 'Português europeu. Usar "tu/você", tom direto. Ej: "Experimenta agora!"',
+  },
 ]
 
 export function getCountryConfig(code: string): CountryConfig | undefined {

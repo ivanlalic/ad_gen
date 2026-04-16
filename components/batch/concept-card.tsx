@@ -209,12 +209,20 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   function renderImageArea() {
     if (concept.image_status === 'done' && concept.image_url) {
       return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={concept.image_url}
-          alt={concept.headline ?? 'Concept image'}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={concept.image_url}
+            alt={concept.headline ?? 'Concept image'}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          {isRegenerating && (
+            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
+              <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              <span className="text-[11px] text-white/80">Editando...</span>
+            </div>
+          )}
+        </>
       )
     }
     if (concept.image_status === 'generating' || isRetrying) {
