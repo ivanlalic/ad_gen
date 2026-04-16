@@ -11,39 +11,59 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { productId } = await req.json()
-  if (!productId) return NextResponse.json({ error: 'productId required' }, { status: 400 })
+  const body = await req.json()
+  const { productId, productContext } = body
 
-  // Fetch product + store — RLS ensures user owns it
-  const { data: product, error } = await supabase
-    .from('products')
-    .select(`
-      id, name, niche, target_sex, target_age_min, target_age_max,
-      stores (country, language)
-    `)
-    .eq('id', productId)
-    .single()
+  let productName: string
+  let productNiche: string
+  let productTargetSex: string
+  let productAgeMin: number
+  let productAgeMax: number
+  let storeCountry: string
 
-  if (error || !product) {
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+  if (productContext) {
+    // Inline context (onboarding — no productId yet)
+    productName = productContext.name
+    productNiche = productContext.niche
+    productTargetSex = productContext.targetSex ?? 'unisex'
+    productAgeMin = productContext.targetAgeMin ?? 25
+    productAgeMax = productContext.targetAgeMax ?? 55
+    storeCountry = productContext.country ?? 'ES'
+  } else if (productId) {
+    const { data: product, error } = await supabase
+      .from('products')
+      .select(`
+        id, name, niche, target_sex, target_age_min, target_age_max,
+        stores (country, language)
+      `)
+      .eq('id', productId)
+      .single()
+    if (error || !product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    const store = (product as any).stores
+    productName = product.name
+    productNiche = product.niche ?? ''
+    productTargetSex = product.target_sex ?? 'unisex'
+    productAgeMin = product.target_age_min ?? 25
+    productAgeMax = product.target_age_max ?? 55
+    storeCountry = store?.country ?? 'ES'
+  } else {
+    return NextResponse.json({ error: 'productId or productContext required' }, { status: 400 })
   }
 
-  const store = (product as any).stores
-  const niche = getNicheConfig(product.niche ?? '')
-  const country = getCountryConfig(store?.country ?? 'ES')
+  const niche = getNicheConfig(productNiche)
+  const country = getCountryConfig(storeCountry)
 
   const sexLabel =
-    product.target_sex === 'male'
-      ? 'hombres'
-      : product.target_sex === 'female'
-        ? 'mujeres'
-        : 'hombres y mujeres'
+    productTargetSex === 'male' ? 'hombres'
+    : productTargetSex === 'female' ? 'mujeres'
+    : 'hombres y mujeres'
 
   const dialectNotes: Record<string, string> = {
     ES: 'Español de España: usá "tú", "vosotros", vocabulario ibérico. Ej: "¡Consíguelo ya!", "genial", "tío/tía".',
     AR: 'Español de Argentina: usá "vos" y sus conjugaciones ("probalo", "conseguilo"). Tono cálido, informal. Ej: "re bueno", "bárbaro".',
     MX: 'Español de México: usá "tú", expresiones mexicanas. Ej: "¡Aprovecha!", "está padrísimo", "compa".',
     CO: 'Español de Colombia: tono cercano y cálido. Ej: "¡Bacano!", "parcero", "chévere".',
+    PT: 'Português europeu: usá "tu/você", tom direto e natural. Ej: "Experimentei e adorei!", "Fantástico mesmo!".',
   }
 
   const systemPrompt = `Sos un experto en escribir reviews de clientes auténticas para productos de e-commerce.
@@ -51,10 +71,10 @@ export async function POST(req: NextRequest) {
 Generá 20 reviews realistas para el siguiente producto.
 
 REGLAS CRÍTICAS:
-- ${dialectNotes[store?.country ?? 'ES'] ?? dialectNotes['ES']}
-- Reviewers: ${sexLabel}, entre ${product.target_age_min ?? 25} y ${product.target_age_max ?? 55} años
-- Usá nombres típicos del país (${country?.label ?? 'España'})
-- Nicho: ${niche?.label ?? product.niche} — dolores, lenguaje y resultados específicos del nicho
+- ${dialectNotes[storeCountry] ?? dialectNotes['ES']}
+- Reviewers: ${sexLabel}, entre ${productAgeMin} y ${productAgeMax} años
+- Usá nombres típicos del país (${country?.label ?? storeCountry})
+- Nicho: ${niche?.label ?? productNiche} — dolores, lenguaje y resultados específicos del nicho
 - Variedad: 16-17 muy positivas (4-5 estrellas), 2-3 con pequeña objeción inicial resuelta
 - Detalles específicos: resultado concreto, timeframe realista (semanas/meses), contexto personal
 - Longitud: 2-4 líneas por review, lenguaje coloquial auténtico
@@ -65,10 +85,10 @@ OUTPUT: responde SOLO con un JSON array válido, sin texto adicional, sin markdo
 IMPORTANTE: El JSON debe ser estrictamente válido. No incluyas saltos de línea literales dentro de los strings (usá \\n si es necesario) ni comillas sin escapar.
 [{"reviewer_name":"...","age":35,"text":"...","rating":5}]`
 
-  const userPrompt = `Producto: ${product.name}
-Nicho: ${niche?.label ?? product.niche}
-País: ${country?.label ?? store?.country}
-Audiencia: ${sexLabel}, ${product.target_age_min}-${product.target_age_max} años
+  const userPrompt = `Producto: ${productName}
+Nicho: ${niche?.label ?? productNiche}
+País: ${country?.label ?? storeCountry}
+Audiencia: ${sexLabel}, ${productAgeMin}-${productAgeMax} años
 
 Generá las 20 reviews ahora.`
 

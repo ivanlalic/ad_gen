@@ -99,6 +99,27 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
     gooeyToast.success('Campos completados con IA — revisá y ajustá')
   }
 
+  // AI generate reviews preview (returns raw JSON string)
+  async function handleGenerateReviews(): Promise<string> {
+    const res = await fetch('/api/generate/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productContext: {
+          name: productData.name,
+          niche: productData.niche,
+          targetSex: audienceData.targetSex,
+          targetAgeMin: audienceData.targetAgeMin,
+          targetAgeMax: audienceData.targetAgeMax,
+          country: storeData.country,
+        },
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Error al generar reviews')
+    return JSON.stringify(data.reviews)
+  }
+
   function canAdvance(): boolean {
     switch (step) {
       case 0: return storeData.name.trim().length > 0 && storeData.country.length > 0
@@ -218,7 +239,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
     <StepAudience key="audience" data={audienceData} onChange={setAudienceData} />,
     <StepColors key="colors" niche={productData.niche} data={colorData} onChange={setColorData} />,
     <StepTone key="tone" data={toneData} onChange={setToneData} />,
-    <StepAssets key="assets" data={assetsData} onChange={setAssetsData} />,
+    <StepAssets key="assets" data={assetsData} onChange={setAssetsData} onGenerateReviews={handleGenerateReviews} />,
   ]
 
   const isLastStep = step === TOTAL_STEPS - 1

@@ -12,10 +12,38 @@ export interface AssetsData {
 interface StepAssetsProps {
   data: AssetsData
   onChange: (data: AssetsData) => void
+  onGenerateReviews?: () => Promise<string>
 }
 
-export function StepAssets({ data, onChange }: StepAssetsProps) {
+const STARS = ['', '★', '★★', '★★★', '★★★★', '★★★★★']
+
+export function StepAssets({ data, onChange, onGenerateReviews }: StepAssetsProps) {
   const [reviewsTab, setReviewsTab] = useState<'paste' | 'upload'>('paste')
+  const [generatingReviews, setGeneratingReviews] = useState(false)
+  const [generatedPreview, setGeneratedPreview] = useState<Array<{ reviewer_name: string; age: number; text: string; rating: number }> | null>(null)
+
+  async function handleGenerateReviews() {
+    if (!onGenerateReviews) return
+    setGeneratingReviews(true)
+    try {
+      const json = await onGenerateReviews()
+      const parsed = JSON.parse(json) as Array<{ reviewer_name: string; age: number; text: string; rating: number }>
+      setGeneratedPreview(parsed)
+    } catch {
+      // error handled in wizard
+    } finally {
+      setGeneratingReviews(false)
+    }
+  }
+
+  function confirmGeneratedReviews() {
+    if (!generatedPreview) return
+    const text = generatedPreview
+      .map((r) => `${STARS[r.rating]} ${r.reviewer_name}, ${r.age} años — ${r.text}`)
+      .join('\n\n')
+    onChange({ ...data, reviewsText: text })
+    setGeneratedPreview(null)
+  }
 
   function handleReviewFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -68,9 +96,26 @@ export function StepAssets({ data, onChange }: StepAssetsProps) {
 
         {/* Reviews */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Reviews de clientes</label>
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-foreground">Reviews de clientes</label>
+            {onGenerateReviews && !generatedPreview && (
+              <button
+                type="button"
+                onClick={handleGenerateReviews}
+                disabled={generatingReviews}
+                className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+              >
+                {generatingReviews ? (
+                  <>
+                    <div className="w-3 h-3 rounded-full border border-primary border-t-transparent animate-spin" />
+                    Generando...
+                  </>
+                ) : '✨ Generar con IA'}
+              </button>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
-            Pegá reviews reales o subí un .txt. Podés generar reviews simuladas en el dashboard si no tenés.
+            Pegá reviews reales o subí un .txt. Si no tenés, generalas con IA.
           </p>
 
           {/* Tabs */}
@@ -116,7 +161,45 @@ export function StepAssets({ data, onChange }: StepAssetsProps) {
             </label>
           )}
 
-          {data.reviewsText && (
+          {/* AI generated preview */}
+          {generatedPreview && (
+            <div className="space-y-2">
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                {generatedPreview.slice(0, 5).map((r, i) => (
+                  <div key={i} className="p-2.5 bg-secondary border border-border rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-foreground">{r.reviewer_name}, {r.age}a</span>
+                      <span className="text-yellow-400 text-xs">{STARS[r.rating]}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{r.text}</p>
+                  </div>
+                ))}
+                {generatedPreview.length > 5 && (
+                  <p className="text-xs text-muted-foreground text-center py-1">
+                    +{generatedPreview.length - 5} reviews más
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGeneratedPreview(null)}
+                  className="px-3 py-1.5 bg-secondary border border-border rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Descartar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmGeneratedReviews}
+                  className="flex-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
+                >
+                  Usar {generatedPreview.length} reviews →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {data.reviewsText && !generatedPreview && (
             <p className="text-xs text-muted-foreground">
               ✓ {data.reviewsText.split('\n').filter(Boolean).length} líneas cargadas
             </p>

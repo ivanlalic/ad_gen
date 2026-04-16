@@ -24,6 +24,29 @@ function stripHtml(html: string): string {
     .trim()
 }
 
+function extractTopColors(html: string): string[] {
+  const hexPattern = /#([0-9A-Fa-f]{6})\b/g
+  const counts = new Map<string, number>()
+  let m: RegExpExecArray | null
+  while ((m = hexPattern.exec(html)) !== null) {
+    const hex = `#${m[1].toUpperCase()}`
+    // Skip near-black, near-white, pure grays
+    const r = parseInt(m[1].slice(0, 2), 16)
+    const g = parseInt(m[1].slice(2, 4), 16)
+    const b = parseInt(m[1].slice(4, 6), 16)
+    const isGray = Math.abs(r - g) < 20 && Math.abs(g - b) < 20 && Math.abs(r - b) < 20
+    const isNearBlack = r < 30 && g < 30 && b < 30
+    const isNearWhite = r > 225 && g > 225 && b > 225
+    if (!isGray && !isNearBlack && !isNearWhite) {
+      counts.set(hex, (counts.get(hex) ?? 0) + 1)
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([hex]) => hex)
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -52,7 +75,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `No se pudo acceder a la URL (${pageRes.status})` }, { status: 422 })
     }
     const html = await pageRes.text()
-    pageText = stripHtml(html).slice(0, 8000)
+    const topColors = extractTopColors(html)
+    const colorHint = topColors.length > 0
+      ? `\n\nDETECTED BRAND COLORS (most frequent non-neutral hex colors from the page CSS/styles): ${topColors.join(', ')} — use the most prominent as hexPrimary and the second most as hexSecondary.`
+      : ''
+    pageText = stripHtml(html).slice(0, 8000) + colorHint
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: `Error al acceder a la URL: ${msg}` }, { status: 422 })
@@ -85,7 +112,7 @@ Return exactly this JSON shape:
   "toneStyle": "directa|científica|empática|aspiracional"
 }
 
-For colors: infer the brand's primary and secondary colors from mentions of branding, packaging, or visual identity. If not determinable, use sensible defaults for the niche.
+For colors: if DETECTED BRAND COLORS are listed at the end of the page text, use them as hexPrimary and hexSecondary (pick the most visually dominant/brand-representative ones). Otherwise infer from branding mentions or use niche defaults.
 For age range: use integers, min >= 18, max <= 75, min < max.`
 
   try {
