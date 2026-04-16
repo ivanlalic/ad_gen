@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@/lib/supabase/server'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
 import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
 interface ConceptOutput {
   template_number: number
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
 
   // Fetch winning ad images as base64 (max 5) for multimodal input
   const winningAdsWithImages = winningAds.filter((i: any) => i.file_url)
-  const winningAdImageParts: Array<{ type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } }> = []
+  const winningAdImageParts: Array<{ inlineData: { mimeType: string; data: string } }> = []
 
   for (const ad of winningAdsWithImages.slice(0, 5)) {
     try {
@@ -197,10 +197,10 @@ export async function POST(req: NextRequest) {
       const imgBuffer = await imgRes.arrayBuffer()
       const imgBase64 = Buffer.from(imgBuffer).toString('base64')
       const rawMime = imgRes.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
-      const mimeType = (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(rawMime)
+      const mimeType = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(rawMime)
         ? rawMime
-        : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-      winningAdImageParts.push({ type: 'image', source: { type: 'base64', media_type: mimeType, data: imgBase64 } })
+        : 'image/jpeg'
+      winningAdImageParts.push({ inlineData: { mimeType, data: imgBase64 } })
     } catch {
       // skip if fetch fails
     }
@@ -294,32 +294,26 @@ Generá ${totalConcepts} conceptos ahora.`
 
   try {
     // Build multimodal message: text prompt + winning ad images
-    const messageContent: Array<
-      { type: 'text'; text: string } |
-      { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } }
-    > = [
-      { type: 'text', text: userPrompt },
+    const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+      { text: userPrompt },
       ...winningAdImageParts,
     ]
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 32000,
-      messages: [{ role: 'user', content: messageContent }],
-      system: systemPrompt,
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-pro-preview-05-06',
+      contents: [{ role: 'user', parts: userParts }],
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.8,
+      },
     })
 
-    const message = await stream.finalMessage()
-
-    const rawText = message.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { type: 'text'; text: string }).text)
-      .join('')
+    const rawText = response.text ?? ''
 
     // Extract JSON array from response
     const match = rawText.match(/\[[\s\S]*\]/)
     if (!match) {
-      return NextResponse.json({ error: 'Invalid Claude response' }, { status: 500 })
+      return NextResponse.json({ error: 'Invalid Gemini response' }, { status: 500 })
     }
 
     let rawConcepts;
@@ -335,10 +329,10 @@ Generá ${totalConcepts} conceptos ahora.`
         is_pinned?: boolean
       }>
     } catch (parseError) {
-      console.error('Error al parsear el JSON de Claude:', parseError);
+      console.error('Error al parsear el JSON de Gemini:', parseError);
       console.error('Últimos 100 caracteres recibidos:', match[0].substring(match[0].length - 100));
       await supabase.from('batches').update({ status: 'error' }).eq('id', batchId);
-      return NextResponse.json({ error: 'Claude devolvió un JSON incompleto o muy largo. Intentá generando menos conceptos a la vez (ej: 10 o 20).' }, { status: 500 })
+      return NextResponse.json({ error: 'Gemini devolvió un JSON incompleto o muy largo. Intentá generando menos conceptos a la vez (ej: 10 o 20).' }, { status: 500 })
     }
 
     // Validate source_grounding is not empty and map to camelCase for saveConcepts
@@ -383,7 +377,7 @@ Generá ${totalConcepts} conceptos ahora.`
     })
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err)
-    console.error('Claude concepts error:', detail, err)
+    console.error('Gemini concepts error:', detail, err)
     await supabase.from('batches').update({ status: 'error' }).eq('id', batchId)
     return NextResponse.json({ error: detail }, { status: 500 })
   }
