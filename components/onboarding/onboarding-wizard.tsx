@@ -17,11 +17,11 @@ import { createClient } from '@/lib/supabase/client'
 
 const TOTAL_STEPS = 6
 
-export function OnboardingWizard() {
+export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string }) {
   const router = useRouter()
   const supabase = createClient()
 
-  const [step, setStep] = useState(0)
+  const [step, setStep] = useState(existingStoreId ? 1 : 0)
   const [saving, setSaving] = useState(false)
 
   const [storeData, setStoreData] = useState<StoreData>({ name: '', country: 'ES' })
@@ -104,7 +104,7 @@ export function OnboardingWizard() {
       case 0: return storeData.name.trim().length > 0 && storeData.country.length > 0
       case 1: return productData.name.trim().length > 0 && productData.niche.length > 0
       case 2: return true
-      case 3: return storeData.name.length > 0 // colors always valid
+      case 3: return true // colors always valid
       case 4: return true
       case 5: return true
       default: return false
@@ -118,16 +118,20 @@ export function OnboardingWizard() {
     })
 
     try {
-      // 1. Create store
-      const storeId = await createStore({
-        name: storeData.name,
-        country: storeData.country,
-      })
-
-      gooeyToast.update(toastId, {
-        title: '✓ Tienda creada',
-        description: 'Guardando producto...',
-      })
+      // 1. Create or reuse store
+      let storeId: string
+      if (existingStoreId) {
+        storeId = existingStoreId
+      } else {
+        storeId = await createStore({
+          name: storeData.name,
+          country: storeData.country,
+        })
+        gooeyToast.update(toastId, {
+          title: '✓ Tienda creada',
+          description: 'Guardando producto...',
+        })
+      }
 
       // 2. Create product
       const productId = await createProduct({
@@ -196,7 +200,7 @@ export function OnboardingWizard() {
         type: 'success',
       })
 
-      router.push('/stores')
+      router.push(existingStoreId ? `/stores/${existingStoreId}` : '/stores')
       router.refresh()
     } catch (err) {
       gooeyToast.update(toastId, {

@@ -1,5 +1,10 @@
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
 
-export default function OnboardingPage() {
-  return <OnboardingWizard />
+interface Props {
+  searchParams: Promise<{ storeId?: string }>
+}
+
+export default async function OnboardingPage({ searchParams }: Props) {
+  const { storeId } = await searchParams
+  return <OnboardingWizard existingStoreId={storeId} />
 }
