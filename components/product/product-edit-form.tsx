@@ -28,6 +28,12 @@ interface ProductEditFormProps {
     claims_allowed: string[] | null
     claims_forbidden: string[] | null
     store_id: string
+    description: string | null
+    key_features: string | null
+    unique_value_prop: string | null
+    target_audience_description: string | null
+    common_objections: string | null
+    use_cases: string | null
   }
   productPhotos: ProductPhoto[]
 }
@@ -101,6 +107,12 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
   const [wordsAvoid, setWordsAvoid] = useState<string[]>(product.words_avoid ?? [])
   const [claimsAllowed, setClaimsAllowed] = useState<string[]>(product.claims_allowed ?? [])
   const [claimsForbidden, setClaimsForbidden] = useState<string[]>(product.claims_forbidden ?? [])
+  const [description, setDescription] = useState(product.description ?? '')
+  const [keyFeatures, setKeyFeatures] = useState(product.key_features ?? '')
+  const [uniqueValueProp, setUniqueValueProp] = useState(product.unique_value_prop ?? '')
+  const [targetAudienceDescription, setTargetAudienceDescription] = useState(product.target_audience_description ?? '')
+  const [commonObjections, setCommonObjections] = useState(product.common_objections ?? '')
+  const [useCases, setUseCases] = useState(product.use_cases ?? '')
 
   async function handleSave() {
     if (!name.trim()) return
@@ -119,6 +131,12 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
         wordsAvoid,
         claimsAllowed,
         claimsForbidden,
+        description: description || undefined,
+        keyFeatures: keyFeatures || undefined,
+        uniqueValueProp: uniqueValueProp || undefined,
+        targetAudienceDescription: targetAudienceDescription || undefined,
+        commonObjections: commonObjections || undefined,
+        useCases: useCases || undefined,
       })
       gooeyToast.success('Producto actualizado')
       window.location.href = `/stores/${product.store_id}`
@@ -182,6 +200,30 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+      </div>
+
+      {/* Description */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">¿Qué es y qué hace?</label>
+        <textarea
+          rows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Qué es el producto, qué hace, cómo funciona."
+          className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+        />
+      </div>
+
+      {/* Key features */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Características a destacar</label>
+        <textarea
+          rows={3}
+          value={keyFeatures}
+          onChange={(e) => setKeyFeatures(e.target.value)}
+          placeholder="Ingredientes, formatos, certificaciones, diferenciadores técnicos."
+          className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
         />
       </div>
 
@@ -262,6 +304,19 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
         </div>
       </div>
 
+      {/* Target audience description */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">¿Quién es tu cliente ideal?</label>
+        <p className="text-xs text-muted-foreground">Situación, dolor, deseo, contexto de vida.</p>
+        <textarea
+          rows={3}
+          value={targetAudienceDescription}
+          onChange={(e) => setTargetAudienceDescription(e.target.value)}
+          placeholder="Ej: Hombre de 30-45 años que nota adelgazamiento. Quiere solución discreta sin cambiar su rutina."
+          className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+        />
+      </div>
+
       {/* Colors */}
       <div className="space-y-3">
         <label className="text-sm font-medium text-foreground">Colores de marca</label>
@@ -314,6 +369,40 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
           <label className="text-sm font-medium text-foreground">Claims prohibidos</label>
           <TagInput value={claimsForbidden} onChange={setClaimsForbidden}
             placeholder="cura diabetes, garantizado..." />
+        </div>
+      </div>
+
+      {/* Strategic copy context */}
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">¿Por qué este y no el de la competencia?</label>
+          <textarea
+            rows={2}
+            value={uniqueValueProp}
+            onChange={(e) => setUniqueValueProp(e.target.value)}
+            placeholder="Diferenciador único, por qué elegirlo sobre alternativas."
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">¿Qué frena a la gente a comprar?</label>
+          <textarea
+            rows={2}
+            value={commonObjections}
+            onChange={(e) => setCommonObjections(e.target.value)}
+            placeholder="Objeciones comunes, dudas, miedos típicos del comprador."
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">¿Cuándo y cómo se usa?</label>
+          <textarea
+            rows={2}
+            value={useCases}
+            onChange={(e) => setUseCases(e.target.value)}
+            placeholder="Momento de uso, frecuencia, contexto, situaciones típicas."
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
         </div>
       </div>
 

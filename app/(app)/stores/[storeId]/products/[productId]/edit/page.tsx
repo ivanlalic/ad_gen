@@ -19,6 +19,8 @@ export default async function ProductEditPage({ params }: Props) {
       id, name, niche, target_sex, target_age_min, target_age_max,
       hex_primary, hex_secondary, tone_adjectives, words_avoid,
       claims_allowed, claims_forbidden, store_id,
+      description, key_features, unique_value_prop,
+      target_audience_description, common_objections, use_cases,
       stores (name)
     `)
     .eq('id', productId)

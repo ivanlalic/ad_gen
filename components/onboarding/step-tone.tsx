@@ -3,6 +3,9 @@ export interface ToneData {
   formality: 'formal' | 'informal'
   customTags: string[]
   wordsAvoid: string[]
+  uniqueValueProp: string
+  commonObjections: string
+  useCases: string
 }
 
 interface StepToneProps {
@@ -84,9 +87,9 @@ export function StepTone({ data, onChange }: StepToneProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">Tono de voz</h2>
+        <h2 className="text-xl font-semibold text-foreground">Tono y propuesta de valor</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Define cómo habla tu marca en los ads.
+          Define cómo habla tu marca y qué la diferencia.
         </p>
       </div>
 
@@ -120,34 +123,10 @@ export function StepTone({ data, onChange }: StepToneProps) {
           </div>
         </div>
 
-        {/* Custom tone tags */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            2. Palabras que usás (Enter o coma para agregar)
-          </label>
-          <TagInput
-            value={data.customTags}
-            onChange={(v) => onChange({ ...data, customTags: v })}
-            placeholder="potencia, natural, científico..."
-          />
-        </div>
-
-        {/* Words to avoid */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            3. Palabras que evitás
-          </label>
-          <TagInput
-            value={data.wordsAvoid}
-            onChange={(v) => onChange({ ...data, wordsAvoid: v })}
-            placeholder="barato, magia, milagro..."
-          />
-        </div>
-
         {/* Formality */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">
-            4. ¿Formal o informal?
+            2. ¿Formal o informal?
           </label>
           <div className="flex gap-0 rounded-lg border border-border overflow-hidden w-fit">
             {(['formal', 'informal'] as const).map((opt) => (
@@ -166,6 +145,72 @@ export function StepTone({ data, onChange }: StepToneProps) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Custom tone tags */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            3. Palabras de tono (Enter o coma para agregar)
+          </label>
+          <TagInput
+            value={data.customTags}
+            onChange={(v) => onChange({ ...data, customTags: v })}
+            placeholder="potencia, natural, científico..."
+          />
+        </div>
+
+        {/* Words to avoid */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            4. Palabras que evitás
+          </label>
+          <TagInput
+            value={data.wordsAvoid}
+            onChange={(v) => onChange({ ...data, wordsAvoid: v })}
+            placeholder="barato, magia, milagro..."
+          />
+        </div>
+
+        {/* Unique value prop */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            5. ¿Por qué este y no el de la competencia?
+          </label>
+          <textarea
+            rows={2}
+            placeholder="Ej: Único con Minoxidil + Biotina en un solo paso. No necesita prescripción. Formato champú, no espuma ni cuentagotas."
+            value={data.uniqueValueProp}
+            onChange={(e) => onChange({ ...data, uniqueValueProp: e.target.value })}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
+        </div>
+
+        {/* Common objections */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            6. ¿Qué frena a la gente a comprar?
+          </label>
+          <textarea
+            rows={2}
+            placeholder="Ej: Precio alto vs. champús comunes. Miedo a resultados lentos. Desconfianza en productos online. No saben si aplica a su tipo de caída."
+            value={data.commonObjections}
+            onChange={(e) => onChange({ ...data, commonObjections: e.target.value })}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
+        </div>
+
+        {/* Use cases */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            7. ¿Cuándo y cómo se usa?
+          </label>
+          <textarea
+            rows={2}
+            placeholder="Ej: En la ducha, 3 veces por semana. Reemplaza el champú habitual. Ideal para hombres que quieren solución sin cambiar su rutina."
+            value={data.useCases}
+            onChange={(e) => onChange({ ...data, useCases: e.target.value })}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
         </div>
       </div>
     </div>

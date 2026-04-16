@@ -25,11 +25,12 @@ export function OnboardingWizard() {
   const [saving, setSaving] = useState(false)
 
   const [storeData, setStoreData] = useState<StoreData>({ name: '', country: 'ES' })
-  const [productData, setProductData] = useState<ProductBasicData>({ name: '', niche: '' })
+  const [productData, setProductData] = useState<ProductBasicData>({ name: '', niche: '', description: '', keyFeatures: '' })
   const [audienceData, setAudienceData] = useState<AudienceData>({
     targetSex: 'unisex',
     targetAgeMin: 25,
     targetAgeMax: 55,
+    targetAudienceDescription: '',
   })
   const [colorData, setColorData] = useState<ColorData>({
     hexPrimary: '#6366f1',
@@ -40,6 +41,9 @@ export function OnboardingWizard() {
     formality: 'informal',
     customTags: [],
     wordsAvoid: [],
+    uniqueValueProp: '',
+    commonObjections: '',
+    useCases: '',
   })
   const [assetsData, setAssetsData] = useState<AssetsData>({
     winningAds: [],
@@ -101,6 +105,12 @@ export function OnboardingWizard() {
         wordsAvoid: toneData.wordsAvoid,
         claimsAllowed: [],
         claimsForbidden: [],
+        description: productData.description || undefined,
+        keyFeatures: productData.keyFeatures || undefined,
+        uniqueValueProp: toneData.uniqueValueProp || undefined,
+        targetAudienceDescription: audienceData.targetAudienceDescription || undefined,
+        commonObjections: toneData.commonObjections || undefined,
+        useCases: toneData.useCases || undefined,
       })
 
       gooeyToast.update(toastId, {

@@ -141,6 +141,8 @@ export async function POST(req: NextRequest) {
       id, name, niche, target_sex, target_age_min, target_age_max,
       hex_primary, hex_secondary, tone_adjectives, words_avoid,
       claims_allowed, claims_forbidden,
+      description, key_features, unique_value_prop,
+      target_audience_description, common_objections, use_cases,
       stores (id, name, country, language),
       product_inputs (type, content_text, file_url, source, is_simulated)
     `)
@@ -258,6 +260,12 @@ PRODUCTO:
 - Audiencia: ${sexLabel}, ${product.target_age_min}-${product.target_age_max} años
 - Tono de voz: ${toneAdjectives}
 - Colores de marca: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}
+${(product as any).description ? `- Descripción: ${(product as any).description}` : ''}
+${(product as any).key_features ? `- Características destacadas: ${(product as any).key_features}` : ''}
+${(product as any).unique_value_prop ? `- Propuesta de valor única: ${(product as any).unique_value_prop}` : ''}
+${(product as any).target_audience_description ? `- Cliente ideal: ${(product as any).target_audience_description}` : ''}
+${(product as any).common_objections ? `- Objeciones comunes: ${(product as any).common_objections}` : ''}
+${(product as any).use_cases ? `- Casos de uso: ${(product as any).use_cases}` : ''}
 ${wordsAvoid ? '\n' + wordsAvoid : ''}
 ${claimsAllowed ? '\n' + claimsAllowed : ''}
 ${claimsForbidden ? '\n' + claimsForbidden : ''}
@@ -284,7 +292,7 @@ IMPORTANTE: El JSON debe ser estrictamente válido. No incluyas saltos de línea
   const userPrompt = `Producto: ${product.name}
 Nicho: ${niche?.label ?? product.niche}
 País: ${country?.label ?? store?.country}
-Audiencia: ${sexLabel}, ${product.target_age_min}-${product.target_age_max} años
+Audiencia: ${sexLabel}, ${product.target_age_min}-${product.target_age_max} años${(product as any).target_audience_description ? `\nCliente ideal: ${(product as any).target_audience_description}` : ''}
 
 WINNING ADS:
 ${winningAdsText}

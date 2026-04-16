@@ -2,6 +2,7 @@ export interface AudienceData {
   targetSex: 'male' | 'female' | 'unisex'
   targetAgeMin: number
   targetAgeMax: number
+  targetAudienceDescription: string
 }
 
 interface StepAudienceProps {
@@ -21,7 +22,7 @@ export function StepAudience({ data, onChange }: StepAudienceProps) {
       <div>
         <h2 className="text-xl font-semibold text-foreground">Audiencia target</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Define quién ve tus ads. Afecta los reviews simulados y el tono del copy.
+          Define quién ve tus ads. Afecta el tono y los ángulos del copy.
         </p>
       </div>
 
@@ -88,6 +89,23 @@ export function StepAudience({ data, onChange }: StepAudienceProps) {
               />
             </div>
           </div>
+        </div>
+
+        {/* Audience description */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">
+            ¿Quién es tu cliente ideal?
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Describí su situación, dolor, deseo y contexto de vida.
+          </p>
+          <textarea
+            rows={4}
+            placeholder="Ej: Hombre de 30-45 años que nota que su cabello se está adelgazando. Trabaja en oficina, le importa verse bien. Frustrado porque probó shampús normales sin resultado. Quiere solución discreta, que no parezca que está tratando un problema."
+            value={data.targetAudienceDescription}
+            onChange={(e) => onChange({ ...data, targetAudienceDescription: e.target.value })}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
         </div>
       </div>
     </div>

@@ -189,52 +189,70 @@ export type Database = {
         Row: {
           claims_allowed: string[] | null
           claims_forbidden: string[] | null
+          common_objections: string | null
           created_at: string
+          description: string | null
           has_reviews: boolean
           hex_primary: string | null
           hex_secondary: string | null
           id: string
+          key_features: string | null
           name: string
           niche: string | null
           store_id: string
           target_age_max: number | null
           target_age_min: number | null
+          target_audience_description: string | null
           target_sex: string | null
           tone_adjectives: string[] | null
+          unique_value_prop: string | null
+          use_cases: string | null
           words_avoid: string[] | null
         }
         Insert: {
           claims_allowed?: string[] | null
           claims_forbidden?: string[] | null
+          common_objections?: string | null
           created_at?: string
+          description?: string | null
           has_reviews?: boolean
           hex_primary?: string | null
           hex_secondary?: string | null
           id?: string
+          key_features?: string | null
           name: string
           niche?: string | null
           store_id: string
           target_age_max?: number | null
           target_age_min?: number | null
+          target_audience_description?: string | null
           target_sex?: string | null
           tone_adjectives?: string[] | null
+          unique_value_prop?: string | null
+          use_cases?: string | null
           words_avoid?: string[] | null
         }
         Update: {
           claims_allowed?: string[] | null
           claims_forbidden?: string[] | null
+          common_objections?: string | null
           created_at?: string
+          description?: string | null
           has_reviews?: boolean
           hex_primary?: string | null
           hex_secondary?: string | null
           id?: string
+          key_features?: string | null
           name?: string
           niche?: string | null
           store_id?: string
           target_age_max?: number | null
           target_age_min?: number | null
+          target_audience_description?: string | null
           target_sex?: string | null
           tone_adjectives?: string[] | null
+          unique_value_prop?: string | null
+          use_cases?: string | null
           words_avoid?: string[] | null
         }
         Relationships: [

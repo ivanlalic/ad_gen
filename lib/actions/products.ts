@@ -16,6 +16,12 @@ export interface CreateProductData {
   wordsAvoid: string[]
   claimsAllowed: string[]
   claimsForbidden: string[]
+  description?: string
+  keyFeatures?: string
+  uniqueValueProp?: string
+  targetAudienceDescription?: string
+  commonObjections?: string
+  useCases?: string
 }
 
 export async function createProduct(data: CreateProductData) {
@@ -38,6 +44,12 @@ export async function createProduct(data: CreateProductData) {
       words_avoid: data.wordsAvoid,
       claims_allowed: data.claimsAllowed,
       claims_forbidden: data.claimsForbidden,
+      description: data.description ?? null,
+      key_features: data.keyFeatures ?? null,
+      unique_value_prop: data.uniqueValueProp ?? null,
+      target_audience_description: data.targetAudienceDescription ?? null,
+      common_objections: data.commonObjections ?? null,
+      use_cases: data.useCases ?? null,
       has_reviews: false,
     })
     .select('id')
@@ -60,6 +72,12 @@ export interface UpdateProductData {
   wordsAvoid: string[]
   claimsAllowed: string[]
   claimsForbidden: string[]
+  description?: string
+  keyFeatures?: string
+  uniqueValueProp?: string
+  targetAudienceDescription?: string
+  commonObjections?: string
+  useCases?: string
 }
 
 export async function updateProduct(data: UpdateProductData) {
@@ -81,6 +99,12 @@ export async function updateProduct(data: UpdateProductData) {
       words_avoid: data.wordsAvoid,
       claims_allowed: data.claimsAllowed,
       claims_forbidden: data.claimsForbidden,
+      description: data.description ?? null,
+      key_features: data.keyFeatures ?? null,
+      unique_value_prop: data.uniqueValueProp ?? null,
+      target_audience_description: data.targetAudienceDescription ?? null,
+      common_objections: data.commonObjections ?? null,
+      use_cases: data.useCases ?? null,
     })
     .eq('id', data.productId)
 
