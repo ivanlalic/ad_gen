@@ -78,6 +78,11 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const conceptPollStarted = useRef(false)
   const conceptGenerationStarted = useRef(false)
   const [imageProgress, setImageProgress] = useState(0)
+  const [currentGeneratingLabel, setCurrentGeneratingLabel] = useState<string | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [stalled, setStalled] = useState(false)
+  const lastProgressTime = useRef<number>(Date.now())
+  const elapsedInterval = useRef<ReturnType<typeof setInterval> | null>(null)
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -142,26 +147,31 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
 
     let retries = 0
     let completed = doneImages
-
-    const toastId = gooeyToast('Generando imágenes...', {
-      duration: Infinity,
-      description: `${completed} / ${totalImages} completadas`,
-    })
+    const startTime = Date.now()
+    lastProgressTime.current = Date.now()
 
     setImageProgress(completed)
+    setStalled(false)
+
+    // Elapsed time ticker
+    elapsedInterval.current = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000))
+      if (Date.now() - lastProgressTime.current > 90_000) setStalled(true)
+    }, 1000)
 
     async function runLoop() {
       if (retries >= MAX_RETRIES) {
-        gooeyToast.update(toastId, {
-          title: 'Tiempo agotado',
-          description: 'Alcanzado el límite de reintentos',
-          type: 'error',
-        })
+        clearInterval(elapsedInterval.current!)
+        setCurrentGeneratingLabel(null)
+        gooeyToast.error('Tiempo agotado — límite de reintentos alcanzado')
         return
       }
       retries++
 
       try {
+        // Refresh BEFORE the call so the previous concept shows as done
+        router.refresh()
+
         const res = await fetch('/api/generate/images', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -170,47 +180,46 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
 
         if (!res.ok) {
           await new Promise((r) => setTimeout(r, 1500))
-          router.refresh()
           runLoop()
           return
         }
 
         const data = await res.json() as {
           done?: boolean
-          conceptId?: string
+          targetConceptId?: string
           imageUrl?: string
           remainingCount?: number
         }
 
         if (data.done) {
-          gooeyToast.update(toastId, {
-            title: '¡Imágenes listas!',
-            description: `${totalImages} imágenes generadas`,
-            type: 'success',
-          })
+          clearInterval(elapsedInterval.current!)
+          setCurrentGeneratingLabel(null)
           setImageProgress(totalImages)
           router.refresh()
           return
         }
 
-        completed += 1
-        setImageProgress(completed)
-        gooeyToast.update(toastId, {
-          title: 'Generando imágenes...',
-          description: `${completed} / ${totalImages} completadas`,
-        })
+        // Find concept headline for the label
+        const conceptLabel = concepts.find(c => c.id === data.targetConceptId)
+          ? (concepts.find(c => c.id === data.targetConceptId)?.headline ?? null)
+          : null
 
-        await new Promise((r) => setTimeout(r, 800))
-        router.refresh()
+        completed += 1
+        lastProgressTime.current = Date.now()
+        setStalled(false)
+        setImageProgress(completed)
+        setCurrentGeneratingLabel(conceptLabel)
+
+        await new Promise((r) => setTimeout(r, 300))
         runLoop()
       } catch {
         await new Promise((r) => setTimeout(r, 1500))
-        router.refresh()
         runLoop()
       }
     }
 
     runLoop()
+    return () => { if (elapsedInterval.current) clearInterval(elapsedInterval.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.status, batch.generate_images, batch.id])
 
@@ -364,17 +373,39 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
 
       {/* Progress bar */}
       {isGeneratingImages && (
-        <div className="mb-8">
-          <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-            <span>Progreso de imágenes</span>
-            <span>{imageProgress} / {totalImages}</span>
+        <div className="mb-8 p-4 bg-card border border-border rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
+              <span className="text-sm font-medium text-foreground">
+                Generando imágenes — {imageProgress} / {totalImages}
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground font-mono tabular-nums">
+              {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, '0')}
+            </span>
           </div>
-          <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
             <div
               className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progressPct}%` }}
             />
           </div>
+          {currentGeneratingLabel && (
+            <p className="text-xs text-muted-foreground">
+              Última completada: <span className="text-foreground">{currentGeneratingLabel}</span>
+            </p>
+          )}
+          {stalled && (
+            <p className="text-xs text-yellow-400">
+              ⚠ Sin progreso en más de 90s — puede haber un error en una imagen. Las demás seguirán generando.
+            </p>
+          )}
+          {!stalled && imageProgress === 0 && elapsedSeconds > 15 && (
+            <p className="text-xs text-muted-foreground/60">
+              Generando primera imagen... ~15-30s por imagen
+            </p>
+          )}
         </div>
       )}
 

@@ -78,11 +78,40 @@ function buildNB2Prompt(
   const lightingLine = isAutoStyle ? '' : `LIGHTING: ${lightingMap[batch.nb2_style_preset] ?? lightingMap['photorealistic']}\n`
   const styleLine = isAutoStyle ? '' : `STYLE: ${styleInstructions[batch.nb2_style_preset] ?? styleInstructions['photorealistic']}\n`
 
+  // Templates that require a real-looking person (reviewer/testimonial)
+  const PERSON_TEMPLATES = new Set([1, 7, 11, 13])
+  const needsPerson = PERSON_TEMPLATES.has(concept.template_number)
+
+  const countryNationalityMap: Record<string, string> = {
+    ES: 'Spanish',
+    AR: 'Argentine',
+    MX: 'Mexican',
+    CO: 'Colombian',
+    PE: 'Peruvian',
+    CL: 'Chilean',
+    US: 'American',
+  }
+  const storeCountry = product.stores?.country ?? 'ES'
+  const nationality = countryNationalityMap[storeCountry] ?? 'Hispanic'
+
+  const sexDescMap: Record<string, string> = {
+    male: 'man',
+    female: 'woman',
+    unisex: 'person',
+  }
+  const personSex = sexDescMap[product.target_sex ?? 'unisex'] ?? 'person'
+  const ageMin = product.target_age_min ?? 25
+  const ageMax = product.target_age_max ?? 45
+
+  const personInstruction = needsPerson
+    ? `PERSON: Include a realistic, candid-style portrait of a ${nationality} ${personSex}, approximately ${ageMin}-${ageMax} years old. They should look like a genuine customer — natural expression, relatable appearance, NOT a stock photo model. Use soft, flattering light. Their face or reaction should convey satisfaction with the product.`
+    : ''
+
   return `IMPORTANT: The labels below (LIGHTING, CAMERA, etc.) are composition directives — do NOT render them as text in the image.
 
 ${lightingLine}CAMERA: ${cameraMap[concept.template_number] ?? 'Product-focused, clean composition'}
 SUBJECT: ${concept.visual_description}
-COMPOSITION: ${concept.headline} as the main visual hook. Brand colors: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}. Clean background matching brand aesthetic.
+${personInstruction ? personInstruction + '\n' : ''}COMPOSITION: ${concept.headline} as the main visual hook. Brand colors: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}. Clean background matching brand aesthetic.
 TEXT OVERLAY: Show headline text "${concept.headline}" prominently. Below it, show body text "${shortBody}". Keep text short — max 2 lines for body. All text must be fully visible, not cut off at any edge, with clear padding from borders.${offerBadgeInstruction ? ' ' + offerBadgeInstruction : ''}
 ${styleLine}BRAND COLORS: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}
 ASPECT RATIO: ${batch.nb2_aspect_ratios?.[0] ?? '1:1'}

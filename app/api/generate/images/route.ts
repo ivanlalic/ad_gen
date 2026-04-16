@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     correctionText,
     correctionImageBase64,
     correctionImageMime,
+    editFromExisting,
   } = body
 
   if (!batchId) {
@@ -104,6 +105,26 @@ export async function POST(req: NextRequest) {
         }
       }
       parts.push({ text: 'Recreate this exact ad for Instagram Stories / Reels — 9:16 vertical format. Keep all visual elements, text, colors, and style identical. Only adapt the composition and layout to fit the tall vertical canvas.' })
+    } else if (editFromExisting && concept.image_url) {
+      // Edit-from-existing mode: send generated image + correction instruction
+      try {
+        const imgRes = await fetch(concept.image_url)
+        if (imgRes.ok) {
+          const buf = await imgRes.arrayBuffer()
+          const base64 = Buffer.from(buf).toString('base64')
+          const mime = imgRes.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
+          parts.push({ inlineData: { mimeType: mime, data: base64 } })
+        }
+      } catch {
+        // fall through — will still try with correction text only
+      }
+      if (correctionImageBase64) {
+        parts.push({ inlineData: { mimeType: correctionImageMime ?? 'image/jpeg', data: correctionImageBase64 } })
+      }
+      const editInstruction = correctionText
+        ? `Edit this ad image. Keep ALL design elements, text, layout, colors, and style IDENTICAL. Apply ONLY this change: ${correctionText}`
+        : 'Regenerate this ad image at higher quality. Keep everything identical.'
+      parts.push({ text: editInstruction })
     } else {
       // Standard generation: product photo as anchor + nb2_prompt
       const basePrompt = promptOverride ?? concept.nb2_prompt ?? concept.visual_description ?? ''
