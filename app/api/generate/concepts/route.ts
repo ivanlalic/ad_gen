@@ -69,19 +69,22 @@ function buildNB2Prompt(
     ? firstSentenceMatch[0].trim()
     : concept.body_copy.split('\n')[0].trim()
 
+  const isAutoStyle = !batch.nb2_style_preset || batch.nb2_style_preset === 'auto'
+
   const offerBadgeInstruction = batch.key_offers?.trim()
     ? `Include a high-contrast badge/banner in the image with this exact text: "${batch.key_offers.trim()}". Make it prominent and fully legible.`
     : ''
 
+  const lightingLine = isAutoStyle ? '' : `LIGHTING: ${lightingMap[batch.nb2_style_preset] ?? lightingMap['photorealistic']}\n`
+  const styleLine = isAutoStyle ? '' : `STYLE: ${styleInstructions[batch.nb2_style_preset] ?? styleInstructions['photorealistic']}\n`
+
   return `IMPORTANT: The labels below (LIGHTING, CAMERA, etc.) are composition directives — do NOT render them as text in the image.
 
-LIGHTING: ${lightingMap[batch.nb2_style_preset] ?? lightingMap['photorealistic']}
-CAMERA: ${cameraMap[concept.template_number] ?? 'Product-focused, clean composition'}
+${lightingLine}CAMERA: ${cameraMap[concept.template_number] ?? 'Product-focused, clean composition'}
 SUBJECT: ${concept.visual_description}
 COMPOSITION: ${concept.headline} as the main visual hook. Brand colors: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}. Clean background matching brand aesthetic.
 TEXT OVERLAY: Show headline text "${concept.headline}" prominently. Below it, show body text "${shortBody}". Keep text short — max 2 lines for body. All text must be fully visible, not cut off at any edge, with clear padding from borders.${offerBadgeInstruction ? ' ' + offerBadgeInstruction : ''}
-STYLE: ${styleInstructions[batch.nb2_style_preset] ?? styleInstructions['photorealistic']}
-BRAND COLORS: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}
+${styleLine}BRAND COLORS: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}
 ASPECT RATIO: ${batch.nb2_aspect_ratios?.[0] ?? '1:1'}
 AVOID: ${batch.nb2_negative_prompt ?? 'blurry, low quality, distorted faces, wrong text, watermark, generic stock photo, plastic look, cropped text, cut-off text, text touching edges, more than 3 lines of body text'}`
 }

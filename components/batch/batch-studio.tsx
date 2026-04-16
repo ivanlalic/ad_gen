@@ -66,6 +66,7 @@ const ASPECT_RATIOS = [
 ]
 
 const STYLE_PRESETS = [
+  { value: 'auto', label: 'Auto (IA elige)', desc: 'Gemini elige el estilo según el concepto' },
   { value: 'photorealistic', label: 'Photorealistic', desc: 'Product photography, natural lighting' },
   { value: 'clean-graphic', label: 'Clean Graphic', desc: 'Flat design, bold typography' },
   { value: 'lifestyle', label: 'Lifestyle', desc: 'Aspirational, natural light' },
@@ -88,10 +89,9 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const [keyOffers, setKeyOffers] = useState('')
   const [selectedTemplates, setSelectedTemplates] = useState<number[]>(TEMPLATES.map(t => t.number))
   const [aspectRatios, setAspectRatios] = useState<string[]>(['1:1'])
-  const [adaptFormats, setAdaptFormats] = useState(false)
   const [nb2Model, setNb2Model] = useState('gemini-3.1-flash-image-preview')
   const [conceptModel, setConceptModel] = useState('gemini-3.1-flash-lite-preview')
-  const [stylePreset, setStylePreset] = useState('photorealistic')
+  const [stylePreset, setStylePreset] = useState('auto')
   const [negativePrompt, setNegativePrompt] = useState(
     'blurry, low quality, distorted faces, wrong text, watermark, generic stock photo, plastic look'
   )
@@ -102,7 +102,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const [launching, setLaunching] = useState(false)
 
   // Computed
-  const totalImages = totalConcepts * aspectRatios.length * (adaptFormats && aspectRatios.includes('1:1') && aspectRatios.includes('9:16') ? 1.5 : 1)
+  const totalImages = totalConcepts * aspectRatios.length
   const estimatedCost = (
     totalConcepts * COST_PER_CONCEPT_CLAUDE +
     Math.ceil(totalImages) * COST_PER_IMAGE_NB2
@@ -144,7 +144,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
         productId: product.id,
         totalConcepts,
         aspectRatios,
-        adaptFormats,
+        adaptFormats: false,
         nb2Model,
         conceptModel,
         stylePreset,
@@ -334,29 +334,6 @@ export function BatchStudio({ product }: BatchStudioProps) {
             ))}
           </div>
 
-          {/* Adapt formats toggle */}
-          <label className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border cursor-pointer">
-            <div
-              onClick={() => setAdaptFormats(!adaptFormats)}
-              className={[
-                'w-10 h-6 rounded-full transition-colors duration-150 relative',
-                adaptFormats ? 'bg-primary' : 'bg-muted-foreground/30',
-              ].join(' ')}
-            >
-              <div
-                className={[
-                  'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-150',
-                  adaptFormats ? 'translate-x-4' : 'translate-x-0.5',
-                ].join(' ')}
-              />
-            </div>
-            <div>
-              <span className="text-sm font-medium text-foreground">Adaptar formatos</span>
-              <span className="text-xs text-muted-foreground ml-2">
-                Readapta 1:1 → 9:16 via image-to-image
-              </span>
-            </div>
-          </label>
         </section>
 
         {/* 5. Modelo de conceptos */}
@@ -466,20 +443,46 @@ export function BatchStudio({ product }: BatchStudioProps) {
                 className="w-40 px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
               />
             </div>
+
+            {/* Generate images toggle */}
+            <label className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border cursor-pointer">
+              <div
+                onClick={() => setGenerateImages(!generateImages)}
+                className={[
+                  'w-10 h-6 rounded-full transition-colors duration-150 relative shrink-0',
+                  generateImages ? 'bg-primary' : 'bg-muted-foreground/30',
+                ].join(' ')}
+              >
+                <div
+                  className={[
+                    'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-150',
+                    generateImages ? 'translate-x-4' : 'translate-x-0.5',
+                  ].join(' ')}
+                />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-foreground">Generar imágenes</span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {generateImages
+                    ? 'ON — genera copies + imágenes al lanzar'
+                    : 'OFF — genera solo copies de texto. Podés generar imágenes concepto por concepto desde el batch.'}
+                </p>
+              </div>
+            </label>
           </div>
         </section>
 
         {/* 8. Inspiración visual */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            9. Inspiración visual <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
+            9. Ángulo de partida <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
           </h2>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">
-              Concepto anclado
+              Ángulo de partida
             </label>
             <p className="text-xs text-muted-foreground">
-              Describí un concepto, feeling o estructura que querés como concepto nº1 del batch.
+              Describe un ángulo, feeling o referencia para el primer concepto. Útil para testear un enfoque específico: vibe, estructura de hook, tipo de audiencia. El resto del batch complementa este ángulo.
             </p>
             <textarea
               value={pinnedConceptText}
@@ -491,29 +494,6 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
         </section>
 
-        {/* Generate images toggle */}
-        <label className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border cursor-pointer">
-          <div
-            onClick={() => setGenerateImages(!generateImages)}
-            className={[
-              'w-10 h-6 rounded-full transition-colors duration-150 relative',
-              generateImages ? 'bg-primary' : 'bg-muted-foreground/30',
-            ].join(' ')}
-          >
-            <div
-              className={[
-                'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-150',
-                generateImages ? 'translate-x-4' : 'translate-x-0.5',
-              ].join(' ')}
-            />
-          </div>
-          <div>
-            <span className="text-sm font-medium text-foreground">Generar imágenes</span>
-            <span className="text-xs text-muted-foreground ml-2">
-              {generateImages ? 'Conceptos + imágenes NB2' : 'Solo conceptos de texto'}
-            </span>
-          </div>
-        </label>
 
         {/* Cost estimate */}
         <div className="p-4 bg-card border border-border rounded-xl">
