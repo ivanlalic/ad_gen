@@ -17,10 +17,12 @@ export type Database = {
       batches: {
         Row: {
           adapt_formats: boolean
+          angle_configs: Json | null
           completed_at: string | null
           concept_model: string | null
           created_at: string
           generate_images: boolean
+          generation_mode: string
           id: string
           key_offers: string | null
           nb2_aspect_ratios: string[]
@@ -36,10 +38,12 @@ export type Database = {
         }
         Insert: {
           adapt_formats?: boolean
+          angle_configs?: Json | null
           completed_at?: string | null
           concept_model?: string | null
           created_at?: string
           generate_images?: boolean
+          generation_mode?: string
           id?: string
           key_offers?: string | null
           nb2_aspect_ratios?: string[]
@@ -55,10 +59,12 @@ export type Database = {
         }
         Update: {
           adapt_formats?: boolean
+          angle_configs?: Json | null
           completed_at?: string | null
           concept_model?: string | null
           created_at?: string
           generate_images?: boolean
+          generation_mode?: string
           id?: string
           key_offers?: string | null
           nb2_aspect_ratios?: string[]
@@ -84,6 +90,7 @@ export type Database = {
       }
       concepts: {
         Row: {
+          angle_number: number | null
           batch_id: string
           body_copy: string | null
           created_at: string
@@ -101,6 +108,7 @@ export type Database = {
           visual_description: string | null
         }
         Insert: {
+          angle_number?: number | null
           batch_id: string
           body_copy?: string | null
           created_at?: string
@@ -118,6 +126,7 @@ export type Database = {
           visual_description?: string | null
         }
         Update: {
+          angle_number?: number | null
           batch_id?: string
           body_copy?: string | null
           created_at?: string

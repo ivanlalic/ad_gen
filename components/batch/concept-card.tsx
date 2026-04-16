@@ -33,6 +33,7 @@ interface ConceptCardProps {
     image_status: string | null
     is_pinned: boolean | null
     nb2_prompt: string | null
+    angle_number?: number | null
   }
   aspectRatio?: string // e.g. '1:1', '4:5', '9:16'
 }
@@ -346,6 +347,11 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
               <Pin size={9} />
               Anclado
+            </span>
+          )}
+          {concept.angle_number != null && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">
+              Ángulo {concept.angle_number}
             </span>
           )}
         </div>

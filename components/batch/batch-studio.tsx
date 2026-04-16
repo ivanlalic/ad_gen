@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createBatch } from '@/lib/actions/batches'
+import { createBatch, type AngleConfig } from '@/lib/actions/batches'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
 import { getNicheConfig } from '@/lib/constants/niches'
@@ -99,6 +99,12 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const [pinnedConceptText, setPinnedConceptText] = useState('')
   const [generateImages, setGenerateImages] = useState(true)
 
+  // Angles mode
+  const [generationMode, setGenerationMode] = useState<'templates' | 'angles'>('templates')
+  const [numAngles, setNumAngles] = useState(3)
+  const [generatedAngles, setGeneratedAngles] = useState<Array<AngleConfig & { selected: boolean }>>([])
+  const [anglesLoading, setAnglesLoading] = useState(false)
+
   const [launching, setLaunching] = useState(false)
 
   // Computed
@@ -128,9 +134,42 @@ export function BatchStudio({ product }: BatchStudioProps) {
     )
   }
 
+  async function handleGenerateAngles() {
+    setAnglesLoading(true)
+    try {
+      const res = await fetch('/api/generate/angles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id, numAngles, keyOffers: keyOffers || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error generando ángulos')
+      setGeneratedAngles(data.angles.map((a: AngleConfig) => ({ ...a, selected: true })))
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error generando ángulos')
+    } finally {
+      setAnglesLoading(false)
+    }
+  }
+
+  function toggleAngle(id: number) {
+    setGeneratedAngles(prev => {
+      const selected = prev.filter(a => a.selected)
+      const target = prev.find(a => a.id === id)
+      // Prevent deselecting last angle
+      if (target?.selected && selected.length <= 1) return prev
+      return prev.map(a => a.id === id ? { ...a, selected: !a.selected } : a)
+    })
+  }
+
   async function handleLaunch() {
     if (aspectRatios.length === 0) {
       gooeyToast.error('Seleccioná al menos un formato')
+      return
+    }
+
+    if (generationMode === 'angles' && generatedAngles.filter(a => a.selected).length === 0) {
+      gooeyToast.error('Generá y seleccioná al menos un ángulo')
       return
     }
 
@@ -138,6 +177,8 @@ export function BatchStudio({ product }: BatchStudioProps) {
     const toastId = gooeyToast('Creando batch...', {
       duration: Infinity,
     })
+
+    const selectedAngles = generatedAngles.filter(a => a.selected).map(({ selected: _, ...a }) => a)
 
     try {
       const batchId = await createBatch({
@@ -151,9 +192,11 @@ export function BatchStudio({ product }: BatchStudioProps) {
         negativePrompt: negativePrompt || undefined,
         seed: seed ? parseInt(seed, 10) : undefined,
         generateImages,
-        pinnedConceptText: pinnedConceptText || undefined,
+        pinnedConceptText: generationMode === 'templates' ? (pinnedConceptText || undefined) : undefined,
         keyOffers: keyOffers.trim() || undefined,
-        selectedTemplates: selectedTemplates.length < TEMPLATES.length ? selectedTemplates : undefined,
+        selectedTemplates: generationMode === 'templates' && selectedTemplates.length < TEMPLATES.length ? selectedTemplates : undefined,
+        generationMode,
+        angleConfigs: generationMode === 'angles' ? selectedAngles : undefined,
       })
 
       gooeyToast.update(toastId, {
@@ -266,49 +309,180 @@ export function BatchStudio({ product }: BatchStudioProps) {
           />
         </section>
 
-        {/* 3. Tipos de anuncio */}
+        {/* 3. Dirección creativa */}
         <section>
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            3. Tipos de anuncio
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            3. Dirección creativa
           </h2>
-          <p className="text-xs text-muted-foreground mb-3">
-            Seleccioná qué tipos de ads generar. {selectedTemplates.length}/{TEMPLATES.length} activos.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATES.map(t => {
-              const active = selectedTemplates.includes(t.number)
-              return (
+
+          {/* Mode toggle */}
+          <div className="flex gap-0 rounded-lg border border-border overflow-hidden w-fit text-sm mb-4">
+            {(['templates', 'angles'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setGenerationMode(mode)}
+                className={[
+                  'px-5 py-2 transition-colors duration-150',
+                  generationMode === mode
+                    ? 'bg-primary text-primary-foreground font-medium'
+                    : 'text-muted-foreground hover:text-foreground',
+                ].join(' ')}
+              >
+                {mode === 'templates' ? 'Templates' : 'Ángulos IA'}
+              </button>
+            ))}
+          </div>
+
+          {generationMode === 'templates' ? (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">
+                Seleccioná qué tipos de ads generar. {selectedTemplates.length}/{TEMPLATES.length} activos.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {TEMPLATES.map(t => {
+                  const active = selectedTemplates.includes(t.number)
+                  return (
+                    <button
+                      key={t.number}
+                      onClick={() => toggleTemplate(t.number)}
+                      title={t.description}
+                      className={[
+                        'px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors duration-150',
+                        active
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border bg-card text-muted-foreground hover:border-primary/40',
+                      ].join(' ')}
+                    >
+                      {t.number}. {t.name}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex gap-2 mt-2">
                 <button
-                  key={t.number}
-                  onClick={() => toggleTemplate(t.number)}
-                  title={t.description}
-                  className={[
-                    'px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors duration-150',
-                    active
-                      ? 'border-primary bg-primary/10 text-foreground'
-                      : 'border-border bg-card text-muted-foreground hover:border-primary/40',
-                  ].join(' ')}
+                  onClick={() => setSelectedTemplates(TEMPLATES.map(t => t.number))}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {t.number}. {t.name}
+                  Seleccionar todos
                 </button>
-              )
-            })}
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => setSelectedTemplates(TEMPLATES.map(t => t.number))}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Seleccionar todos
-            </button>
-            <span className="text-muted-foreground/40">·</span>
-            <button
-              onClick={() => setSelectedTemplates([5])}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Solo producto
-            </button>
-          </div>
+                <span className="text-muted-foreground/40">·</span>
+                <button
+                  onClick={() => setSelectedTemplates([5])}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Solo producto
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                La IA genera ángulos creativos únicos — cada ángulo es una dirección de messaging diferente. Elegís cuáles usar y los conceptos se distribuyen entre ellos.
+              </p>
+
+              {/* Num angles selector */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Número de ángulos</label>
+                <div className="flex gap-2">
+                  {[2, 3, 4, 5, 7, 10].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => { setNumAngles(n); setGeneratedAngles([]) }}
+                      className={[
+                        'w-10 h-10 rounded-lg border text-sm font-medium transition-colors duration-150',
+                        numAngles === n
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border bg-card text-muted-foreground hover:border-primary/40',
+                      ].join(' ')}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Generate angles button or angle cards */}
+              {generatedAngles.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={handleGenerateAngles}
+                  disabled={anglesLoading}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {anglesLoading ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                      Generando {numAngles} ángulos...
+                    </>
+                  ) : `✨ Generar ${numAngles} ángulos`}
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  {/* Distribution math */}
+                  {(() => {
+                    const selectedCount = generatedAngles.filter(a => a.selected).length
+                    const perAngle = selectedCount > 0 ? Math.floor(totalConcepts / selectedCount) : 0
+                    const remainder = selectedCount > 0 ? totalConcepts % selectedCount : 0
+                    return (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedCount} ángulo{selectedCount !== 1 ? 's' : ''} seleccionado{selectedCount !== 1 ? 's' : ''} · {totalConcepts} conceptos → {perAngle}{remainder > 0 ? `-${perAngle + 1}` : ''} por ángulo
+                      </p>
+                    )
+                  })()}
+
+                  {/* Angle cards */}
+                  <div className="space-y-2">
+                    {generatedAngles.map(angle => (
+                      <div
+                        key={angle.id}
+                        className={[
+                          'p-3.5 rounded-xl border transition-colors duration-150',
+                          angle.selected
+                            ? 'border-primary/40 bg-primary/5'
+                            : 'border-border bg-card opacity-50',
+                        ].join(' ')}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                                Ángulo {angle.id}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-foreground leading-snug">{angle.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{angle.description}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleAngle(angle.id)}
+                            className={[
+                              'shrink-0 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors duration-150 mt-0.5',
+                              angle.selected
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border bg-card text-muted-foreground hover:text-foreground',
+                            ].join(' ')}
+                          >
+                            {angle.selected ? '✓' : '+'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => { setGeneratedAngles([]); handleGenerateAngles() }}
+                    disabled={anglesLoading}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    Regenerar ángulos
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* 4. Formatos */}
@@ -472,8 +646,8 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
         </section>
 
-        {/* 8. Inspiración visual */}
-        <section>
+        {/* 8. Inspiración visual — only in templates mode */}
+        {generationMode === 'templates' && <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
             9. Ángulo de partida <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
           </h2>
@@ -492,7 +666,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
               className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
-        </section>
+        </section>}
 
 
         {/* Cost estimate */}
@@ -511,14 +685,16 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
         </div>
 
-        {/* Launch button */}
-        <button
-          onClick={handleLaunch}
-          disabled={launching || aspectRatios.length === 0}
-          className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {launching ? 'Lanzando...' : `Lanzar batch — ${totalConcepts} conceptos`}
-        </button>
+        {/* Launch button — in angles mode only show after angles generated */}
+        {(generationMode === 'templates' || generatedAngles.length > 0) && (
+          <button
+            onClick={handleLaunch}
+            disabled={launching || aspectRatios.length === 0 || (generationMode === 'angles' && generatedAngles.filter(a => a.selected).length === 0)}
+            className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {launching ? 'Lanzando...' : `Lanzar batch — ${totalConcepts} conceptos`}
+          </button>
+        )}
       </div>
     </div>
   )

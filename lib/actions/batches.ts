@@ -4,6 +4,12 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
+export interface AngleConfig {
+  id: number
+  title: string
+  description: string
+}
+
 export interface CreateBatchData {
   productId: string
   totalConcepts: number
@@ -18,6 +24,8 @@ export interface CreateBatchData {
   pinnedConceptText?: string
   keyOffers?: string
   selectedTemplates?: number[]
+  generationMode?: 'templates' | 'angles'
+  angleConfigs?: AngleConfig[]
 }
 
 export async function createBatch(data: CreateBatchData) {
@@ -53,6 +61,8 @@ export async function createBatch(data: CreateBatchData) {
       concept_model: data.conceptModel ?? null,
       key_offers: data.keyOffers ?? null,
       selected_templates: data.selectedTemplates ?? null,
+      generation_mode: data.generationMode ?? 'templates',
+      angle_configs: data.angleConfigs ? (data.angleConfigs as unknown as import('@/types/supabase').Json) : null,
     })
     .select('id')
     .single()

@@ -254,26 +254,55 @@ export async function POST(req: NextRequest) {
     ? comments.map((c: any) => c.content_text).filter(Boolean).join('\n')
     : ''
 
-  // Distribute templates (using selected subset if provided)
-  const selectedTemplates = (batch.selected_templates && batch.selected_templates.length > 0)
-    ? batch.selected_templates
-    : undefined
-  const templateDistribution = distributeTemplates(totalConcepts, selectedTemplates)
+  const isAnglesMode = (batch as any).generation_mode === 'angles'
 
-  // Build pinned concept section
-  const pinnedSection = pinnedConceptText
+  // Build pinned concept section (templates mode only)
+  const pinnedSection = !isAnglesMode && pinnedConceptText
     ? `\n\nCONCEPTO ANCLADO (Concepto nº1 — FIJO):\nEl primer concepto del batch DEBE ser basado en esta descripción:\n"${pinnedConceptText}"\nEste concepto tiene is_pinned = true. Generá el resto del batch complementando a este concepto sin repetirlo.`
     : ''
 
-  // Build templates distribution instruction
-  const templateCounts = templateDistribution.reduce((acc, num) => {
-    acc[num] = (acc[num] || 0) + 1
-    return acc
-  }, {} as Record<number, number>)
+  // --- Angles mode distribution ---
+  let anglesDistributionText = ''
+  let angleConfigs: Array<{ id: number; title: string; description: string }> = []
+  let perAngleCounts: number[] = []
 
-  const distributionText = Object.entries(templateCounts)
-    .map(([num, count]) => `Template ${num} (${TEMPLATES.find(t => t.number === parseInt(num))?.name}): ${count} concepto(s)`)
-    .join('\n')
+  if (isAnglesMode) {
+    angleConfigs = ((batch as any).angle_configs ?? []) as Array<{ id: number; title: string; description: string }>
+    if (angleConfigs.length === 0) {
+      return NextResponse.json({ error: 'Angles mode batch has no angle_configs' }, { status: 400 })
+    }
+    const base = Math.floor(totalConcepts / angleConfigs.length)
+    const remainder = totalConcepts % angleConfigs.length
+    perAngleCounts = angleConfigs.map((_, i) => base + (i < remainder ? 1 : 0))
+    anglesDistributionText = `ÁNGULOS CREATIVOS:
+Generá conceptos distribuidos entre los siguientes ángulos. Cada ángulo es una dirección de messaging diferente.
+
+${angleConfigs.map((a, i) => `ÁNGULO ${a.id}: "${a.title}"
+${a.description}
+→ Generá ${perAngleCounts[i]} concepto(s) para este ángulo.`).join('\n\n')}
+
+REGLAS DE ÁNGULOS:
+- Cada concepto debe reflejar claramente el ángulo al que pertenece
+- Elegí el template más adecuado para cada concepto dentro de su ángulo (variedad dentro de cada ángulo)
+- En source_grounding indicá: "Ángulo: [título del ángulo]" + el origen real de la idea
+- Incluí un campo adicional "angle_id": <número> en cada concepto para identificar a qué ángulo pertenece`
+  }
+
+  // --- Templates mode distribution (only when not angles) ---
+  let distributionText = ''
+  if (!isAnglesMode) {
+    const selectedTemplates = (batch.selected_templates && batch.selected_templates.length > 0)
+      ? batch.selected_templates
+      : undefined
+    const templateDistribution = distributeTemplates(totalConcepts, selectedTemplates)
+    const templateCounts = templateDistribution.reduce((acc, num) => {
+      acc[num] = (acc[num] || 0) + 1
+      return acc
+    }, {} as Record<number, number>)
+    distributionText = Object.entries(templateCounts)
+      .map(([num, count]) => `Template ${num} (${TEMPLATES.find(t => t.number === parseInt(num))?.name}): ${count} concepto(s)`)
+      .join('\n')
+  }
 
   const systemPrompt = `Sos un experto en direct response copywriting para Meta Ads. Tu especialidad es crear conceptos de anuncios que convierten, basados en lenguaje real de clientes.
 
@@ -305,9 +334,9 @@ REGLAS CRÍTICAS:
 2. El source_grounding debe ser específico: "basado en review de [nombre]: '[cita]'" o "basado en winning ad — hook de [descripción]"
 3. Copy acorde al tono de voz configurado
 4. No usar claims no aprobados
-5. Distribuí las plantillas según esta distribución:
+${isAnglesMode ? anglesDistributionText : `5. Distribuí las plantillas según esta distribución:
 ${distributionText}
-6. No saltes ninguna plantilla — el objetivo es variedad de ángulos
+6. No saltes ninguna plantilla — el objetivo es variedad de ángulos`}
 7. Headlines cortos y punchy (máx 8 palabras)
 8. Body copy: UNA sola oración completa, máx 12 palabras. Nunca cortes una frase. Terminá siempre con punto, signo de exclamación o interrogación.
 9. Visual description: describí la imagen en detalle para que un diseñador pueda crearla
@@ -316,7 +345,9 @@ ${pinnedSection}
 
 OUTPUT: respondé SOLO con un JSON array válido, sin texto adicional, sin markdown.
 IMPORTANTE: El JSON debe ser estrictamente válido. No incluyas saltos de línea literales dentro de los strings (usá \\n si es necesario) ni comillas sin escapar.
-[{"template_number":1,"template_name":"Review Card","headline":"...","body_copy":"...","visual_description":"...","source_grounding":"...","nb2_prompt":"..."}]`
+${isAnglesMode
+  ? '[{"template_number":1,"template_name":"Review Card","angle_id":1,"headline":"...","body_copy":"...","visual_description":"...","source_grounding":"...","nb2_prompt":"..."}]'
+  : '[{"template_number":1,"template_name":"Review Card","headline":"...","body_copy":"...","visual_description":"...","source_grounding":"...","nb2_prompt":"..."}]'}`
 
   const userPrompt = `Producto: ${product.name}
 Nicho: ${niche?.label ?? product.niche}
@@ -414,7 +445,8 @@ Generá ${totalConcepts} conceptos ahora.`
         visualDescription: c.visual_description,
         sourceGrounding: c.source_grounding,
         nb2Prompt: buildNB2Prompt(c as any, product, batch, niche),
-        isPinned: pinnedConceptText && idx === 0 ? true : (c.is_pinned ?? false),
+        isPinned: !isAnglesMode && pinnedConceptText && idx === 0 ? true : (c.is_pinned ?? false),
+        angleNumber: isAnglesMode ? ((c as any).angle_id ?? null) : null,
       }))
 
     // Save concepts to DB
@@ -428,6 +460,7 @@ Generá ${totalConcepts} conceptos ahora.`
       source_grounding: c.sourceGrounding,
       nb2_prompt: c.nb2Prompt,
       is_pinned: c.isPinned ?? false,
+      angle_number: c.angleNumber ?? null,
       image_status: 'pending',
     }))
     const { error: insertError } = await supabase.from('concepts').insert(rows)
