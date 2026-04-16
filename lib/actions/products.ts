@@ -111,6 +111,19 @@ export async function updateProduct(data: UpdateProductData) {
   if (error) throw new Error(error.message)
 }
 
+export async function deleteProduct(productId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', productId)
+
+  if (error) throw new Error(error.message)
+}
+
 export async function deleteProductInput(inputId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

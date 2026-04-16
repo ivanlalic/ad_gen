@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2, Upload, ImageIcon } from 'lucide-react'
-import { updateProduct, saveProductInput, deleteProductInput } from '@/lib/actions/products'
+import { updateProduct, saveProductInput, deleteProductInput, deleteProduct } from '@/lib/actions/products'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { createClient } from '@/lib/supabase/client'
 import { NICHES } from '@/lib/constants/niches'
@@ -91,6 +91,8 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [photos, setPhotos] = useState<ProductPhoto[]>(initialPhotos)
   const [analyzeUrl, setAnalyzeUrl] = useState('')
@@ -226,6 +228,19 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
       setPhotos((prev) => prev.filter((p) => p.id !== photoId))
     } catch {
       gooeyToast.error('Error al eliminar foto')
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      await deleteProduct(product.id)
+      router.push(`/stores/${product.store_id}`)
+      router.refresh()
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error al eliminar producto')
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -534,22 +549,54 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3 pt-2 border-t border-border">
-        <button
-          type="button"
-          onClick={() => router.push(`/stores/${product.store_id}`)}
-          className="px-4 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground hover:bg-secondary/80 transition-colors"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !name.trim()}
-          className="px-5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {saving ? 'Guardando...' : 'Guardar cambios'}
-        </button>
+      <div className="flex items-center justify-between pt-2 border-t border-border">
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => router.push(`/stores/${product.store_id}`)}
+            className="px-4 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className="px-5 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">¿Confirmar eliminación?</span>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="px-3 py-1.5 text-xs bg-secondary border border-border rounded-lg text-foreground hover:bg-secondary/80 transition-colors"
+            >
+              No
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:text-red-300 transition-colors"
+          >
+            <Trash2 size={13} />
+            Eliminar producto
+          </button>
+        )}
       </div>
     </div>
   )
