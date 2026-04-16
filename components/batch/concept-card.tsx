@@ -8,12 +8,12 @@ import {
   RefreshCw,
   Trash2,
   Eye,
-  EyeOff,
   Copy,
   Check,
   Pin,
 } from 'lucide-react'
 import { gooeyToast } from '@/components/ui/goey-toaster'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 interface ConceptCardProps {
   concept: {
@@ -47,6 +47,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   const [copiedHeadline, setCopiedHeadline] = useState(false)
   const [copiedBody, setCopiedBody] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
@@ -194,13 +195,13 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
               <RefreshCw size={15} className={isRetrying ? 'animate-spin' : ''} />
             </button>
           )}
-          {concept.nb2_prompt && (
+          {canDownload && (
             <button
-              onClick={() => setShowPrompt((p) => !p)}
-              title={showPrompt ? 'Ocultar prompt' : 'Ver prompt NB2'}
+              onClick={() => setShowImageModal(true)}
+              title="Ver imagen grande"
               className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors backdrop-blur-sm"
             >
-              {showPrompt ? <EyeOff size={15} /> : <Eye size={15} />}
+              <Eye size={15} />
             </button>
           )}
           <button
@@ -246,30 +247,22 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
           </p>
         )}
 
-        {/* NB2 Prompt expandable */}
-        <AnimatePresence>
-          {showPrompt && concept.nb2_prompt && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="p-2.5 rounded-lg bg-secondary/50 border border-border">
-                <p className="text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre-wrap break-all">
-                  {concept.nb2_prompt}
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Footer */}
         <div className="mt-auto pt-3 border-t border-border flex items-end justify-between gap-2">
-          <p className="text-[10px] text-muted-foreground/70 italic line-clamp-2 flex-1">
-            {concept.source_grounding}
-          </p>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-muted-foreground/70 italic line-clamp-2">
+              {concept.source_grounding}
+            </p>
+            {concept.nb2_prompt && (
+              <button
+                type="button"
+                onClick={() => setShowPrompt((p) => !p)}
+                className="mt-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                {showPrompt ? '▲ Ocultar prompt' : '▼ Ver prompt'}
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => concept.headline && copyText(concept.headline, 'headline')}
@@ -289,7 +282,49 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
             </button>
           </div>
         </div>
+
+        {/* NB2 Prompt expandable */}
+        <AnimatePresence>
+          {showPrompt && concept.nb2_prompt && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="p-2.5 rounded-lg bg-secondary/50 border border-border mt-2">
+                <p className="text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre-wrap break-all">
+                  {concept.nb2_prompt}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Image modal */}
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden">
+          <DialogTitle className="sr-only">{concept.headline ?? 'Imagen del concepto'}</DialogTitle>
+          {concept.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={concept.image_url}
+              alt={concept.headline ?? 'Concept image'}
+              className="w-full h-auto block"
+            />
+          )}
+          {concept.headline && (
+            <div className="px-4 py-3">
+              <p className="text-sm font-semibold text-foreground">{concept.headline}</p>
+              {concept.body_copy && (
+                <p className="text-xs text-muted-foreground mt-1">{concept.body_copy}</p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }
