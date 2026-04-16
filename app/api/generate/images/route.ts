@@ -13,7 +13,15 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { batchId, conceptId: requestedConceptId, aspectRatio: aspectRatioOverride } = body
+  const {
+    batchId,
+    conceptId: requestedConceptId,
+    aspectRatio: aspectRatioOverride,
+    promptOverride,
+    correctionText,
+    correctionImageBase64,
+    correctionImageMime,
+  } = body
 
   if (!batchId) {
     return NextResponse.json({ error: 'batchId required' }, { status: 400 })
@@ -75,7 +83,8 @@ export async function POST(req: NextRequest) {
     const model = batch.nb2_model ?? 'gemini-3.1-flash-image-preview'
     const aspectRatio = aspectRatioOverride ?? batch.nb2_aspect_ratios?.[0] ?? '1:1'
     const is916 = aspectRatio === '9:16' && aspectRatioOverride === '9:16'
-    const prompt = concept.nb2_prompt ?? concept.visual_description ?? ''
+    const basePrompt = promptOverride ?? concept.nb2_prompt ?? concept.visual_description ?? ''
+    const prompt = correctionText ? `${basePrompt}\n\nCORRECTION: ${correctionText}` : basePrompt
 
     // Fetch product photo to use as reference image for Gemini
     let productPhotoBase64: string | null = null
@@ -103,11 +112,16 @@ export async function POST(req: NextRequest) {
       // Continue without product photo
     }
 
-    // Build content parts — product photo first (reference), then text prompt
+    // Build content parts — product photo first (reference), then correction image, then text prompt
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = []
     if (productPhotoBase64) {
       // Reference image goes FIRST so Gemini treats it as the visual anchor
       parts.push({ inlineData: { mimeType: productPhotoMime, data: productPhotoBase64 } })
+    }
+    if (correctionImageBase64) {
+      parts.push({ inlineData: { mimeType: correctionImageMime ?? 'image/jpeg', data: correctionImageBase64 } })
+    }
+    if (productPhotoBase64) {
       parts.push({ text: `Use the product in the provided photo as the EXACT product shown in this ad image. Do not invent or replace the product — feature it prominently.\n\n${prompt}` })
     } else {
       parts.push({ text: prompt })

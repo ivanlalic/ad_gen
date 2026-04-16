@@ -45,5 +45,22 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ retrying: true })
   }
 
+  if (body.action === 'update-prompt') {
+    const { nb2Prompt } = body
+    if (typeof nb2Prompt !== 'string') return NextResponse.json({ error: 'nb2Prompt required' }, { status: 400 })
+
+    // Verify ownership via RLS
+    const { data: concept } = await supabase.from('concepts').select('id').eq('id', id).single()
+    if (!concept) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    const { error } = await supabaseAdmin
+      .from('concepts')
+      .update({ nb2_prompt: nb2Prompt })
+      .eq('id', id)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ updated: true })
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 }

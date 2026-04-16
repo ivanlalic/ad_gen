@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -11,6 +11,9 @@ import {
   Copy,
   Check,
   Pin,
+  Wand2,
+  ImagePlus,
+  X,
 } from 'lucide-react'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -49,6 +52,11 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   const [copiedBody, setCopiedBody] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
+  const [editedPrompt, setEditedPrompt] = useState(concept.nb2_prompt ?? '')
+  const [correctionText, setCorrectionText] = useState('')
+  const [correctionImage, setCorrectionImage] = useState<{ base64: string; mime: string; name: string } | null>(null)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const correctionFileRef = useRef<HTMLInputElement>(null)
   const [isRetrying, setIsRetrying] = useState(false)
   const [isGenerating916, setIsGenerating916] = useState(false)
   const [imageUrl916, setImageUrl916] = useState<string | null>(concept.image_url_9_16)
@@ -101,6 +109,64 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
     } finally {
       setIsRetrying(false)
     }
+  }
+
+  async function handleRegenerateWithChanges() {
+    if (isRegenerating) return
+    setIsRegenerating(true)
+    try {
+      // Save edited prompt if changed
+      if (editedPrompt !== (concept.nb2_prompt ?? '')) {
+        const patchRes = await fetch(`/api/concepts/${concept.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update-prompt', nb2Prompt: editedPrompt }),
+        })
+        if (!patchRes.ok) {
+          const err = await patchRes.json().catch(() => ({}))
+          throw new Error(err.error || 'Error guardando prompt')
+        }
+      }
+
+      // Generate image with overrides
+      const genRes = await fetch('/api/generate/images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchId: concept.batch_id,
+          conceptId: concept.id,
+          promptOverride: editedPrompt || undefined,
+          correctionText: correctionText || undefined,
+          correctionImageBase64: correctionImage?.base64 || undefined,
+          correctionImageMime: correctionImage?.mime || undefined,
+        }),
+      })
+      if (!genRes.ok) {
+        const err = await genRes.json().catch(() => ({}))
+        throw new Error(err.error || 'Error al regenerar')
+      }
+
+      setCorrectionText('')
+      setCorrectionImage(null)
+      router.refresh()
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error al regenerar')
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
+
+  function handleCorrectionImagePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const [header, base64] = dataUrl.split(',')
+      const mime = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
+      setCorrectionImage({ base64, mime, name: file.name })
+    }
+    reader.readAsDataURL(file)
   }
 
   async function handleGenerate916() {
@@ -353,7 +419,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
           )}
         </AnimatePresence>
 
-        {/* NB2 Prompt expandable */}
+        {/* NB2 Prompt expandable — editable with correction */}
         <AnimatePresence>
           {showPrompt && concept.nb2_prompt && (
             <motion.div
@@ -363,10 +429,66 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="p-2.5 rounded-lg bg-secondary/50 border border-border mt-2">
-                <p className="text-[10px] text-muted-foreground font-mono leading-relaxed whitespace-pre-wrap break-all">
-                  {concept.nb2_prompt}
-                </p>
+              <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-secondary/50 border border-border mt-2">
+                {/* Editable prompt */}
+                <textarea
+                  value={editedPrompt}
+                  onChange={(e) => setEditedPrompt(e.target.value)}
+                  rows={5}
+                  className="w-full text-[10px] text-muted-foreground font-mono leading-relaxed bg-background border border-border rounded p-2 resize-y focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+
+                {/* Correction text */}
+                <input
+                  type="text"
+                  placeholder="Corrección (ej: usa fondo blanco, quita la persona)"
+                  value={correctionText}
+                  onChange={(e) => setCorrectionText(e.target.value)}
+                  className="w-full text-[10px] text-muted-foreground bg-background border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/40"
+                />
+
+                {/* Correction image */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => correctionFileRef.current?.click()}
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <ImagePlus size={11} />
+                    {correctionImage ? correctionImage.name : 'Imagen de referencia'}
+                  </button>
+                  {correctionImage && (
+                    <button
+                      type="button"
+                      onClick={() => { setCorrectionImage(null); if (correctionFileRef.current) correctionFileRef.current.value = '' }}
+                      className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                  <input
+                    ref={correctionFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleCorrectionImagePick}
+                  />
+                </div>
+
+                {/* Regenerate button */}
+                <button
+                  type="button"
+                  onClick={handleRegenerateWithChanges}
+                  disabled={isRegenerating}
+                  className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] font-medium transition-colors disabled:opacity-50"
+                >
+                  {isRegenerating ? (
+                    <div className="w-3 h-3 rounded-full border border-primary border-t-transparent animate-spin" />
+                  ) : (
+                    <Wand2 size={11} />
+                  )}
+                  {isRegenerating ? 'Regenerando...' : 'Regenerar con cambios'}
+                </button>
               </div>
             </motion.div>
           )}
