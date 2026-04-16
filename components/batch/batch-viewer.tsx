@@ -257,16 +257,33 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     if (withImages.length === 0) return
     setIsDownloadingAll(true)
     try {
-      for (const concept of withImages) {
-        const a = document.createElement('a')
-        a.href = concept.image_url!
-        a.download = `concept-${concept.id.slice(0, 8)}.jpg`
-        a.target = '_blank'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        await new Promise((r) => setTimeout(r, 200))
-      }
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      const productName = (product?.name ?? 'ad')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .slice(0, 30)
+
+      await Promise.all(
+        withImages.map(async (concept, i) => {
+          const res = await fetch(concept.image_url!)
+          const blob = await res.blob()
+          const ext = blob.type.includes('jpeg') ? 'jpg' : 'png'
+          const num = String(i + 1).padStart(2, '0')
+          zip.file(`${productName}_${num}.${ext}`, blob)
+        })
+      )
+
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${productName}_ads.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } finally {
       setIsDownloadingAll(false)
     }

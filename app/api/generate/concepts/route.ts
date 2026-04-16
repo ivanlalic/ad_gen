@@ -61,15 +61,19 @@ function buildNB2Prompt(
     15: 'Bold CTA dominant, product visible, high contrast',
   }
 
+  const keyOffersLine = batch.key_offers?.trim()
+    ? `[KEY OFFERS]: ${batch.key_offers.trim()} — render as a prominent badge or banner overlay in the image, high contrast, clearly legible`
+    : ''
+
   return `[LIGHTING]: ${lightingMap[batch.nb2_style_preset] ?? lightingMap['photorealistic']}
 [CAMERA]: ${cameraMap[concept.template_number] ?? 'Product-focused, clean composition'}
 [SUBJECT]: ${concept.visual_description}
 [COMPOSITION]: ${concept.template_name} template — ${concept.headline} as visual hook. Brand colors: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}. Clean background matching brand aesthetic.
-[TEXT OVERLAY]: Headline: "${concept.headline}". Body: "${concept.body_copy.substring(0, 120)}${concept.body_copy.length > 120 ? '...' : ''}"
+[TEXT OVERLAY]: Headline: "${concept.headline}". Body: "${concept.body_copy.substring(0, 120)}${concept.body_copy.length > 120 ? '...' : ''}". CRITICAL: all text must be fully visible and NOT cut off at any edge. Leave sufficient padding around all text elements.${keyOffersLine ? ` ${keyOffersLine}.` : ''}
 [STYLE]: ${styleInstructions[batch.nb2_style_preset] ?? styleInstructions['photorealistic']}
 [BRAND COLORS]: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}
 [ASPECT RATIO]: ${batch.nb2_aspect_ratios?.[0] ?? '1:1'}
-[NEGATIVE]: ${batch.nb2_negative_prompt ?? 'blurry, low quality, distorted faces, wrong text, watermark, generic stock photo, plastic look'}`
+${keyOffersLine ? keyOffersLine + '\n' : ''}[NEGATIVE]: ${batch.nb2_negative_prompt ?? 'blurry, low quality, distorted faces, wrong text, watermark, generic stock photo, plastic look, cropped text, cut-off text, text at edges'}`
 }
 
 /**

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronRight, Plus, CheckCircle, Clock, Package } from 'lucide-react'
+import { ChevronRight, Plus, CheckCircle, Clock, Package, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { NICHES } from '@/lib/constants/niches'
 import { COUNTRIES } from '@/lib/constants/countries'
@@ -143,14 +143,23 @@ export default async function StorePage({ params }: Props) {
                           </div>
                         </div>
 
-                        {/* New batch button */}
-                        <Link
-                          href={`/batch/new?productId=${product.id}`}
-                          className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'text-xs h-7 shrink-0')}
-                        >
-                          <Plus size={11} />
-                          Nuevo batch
-                        </Link>
+                        {/* Actions */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Link
+                            href={`/stores/${store.id}/products/${product.id}/edit`}
+                            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'text-xs h-7')}
+                            title="Editar producto"
+                          >
+                            <Pencil size={11} />
+                          </Link>
+                          <Link
+                            href={`/batch/new?productId=${product.id}`}
+                            className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'text-xs h-7')}
+                          >
+                            <Plus size={11} />
+                            Nuevo batch
+                          </Link>
+                        </div>
                       </div>
 
                       {/* Generate reviews CTA */}
