@@ -121,8 +121,7 @@ export function ProductEditForm({ product, productPhotos: initialPhotos }: Produ
         claimsForbidden,
       })
       gooeyToast.success('Producto actualizado')
-      router.push(`/stores/${product.store_id}`)
-      router.refresh()
+      window.location.href = `/stores/${product.store_id}`
     } catch (err) {
       gooeyToast.error(err instanceof Error ? err.message : 'Error al guardar')
     } finally {
