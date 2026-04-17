@@ -72,8 +72,9 @@ export async function POST(req: NextRequest) {
 
   const targetConceptId = concept.id
 
-  // Mark this concept as generating (skip for 9:16 override — it has its own image_url_9_16 field)
-  if (!aspectRatioOverride || aspectRatioOverride !== '9:16') {
+  // On-demand format variants (9:16, 1:1) have dedicated columns — don't touch image_status
+  const isOnDemandVariant = aspectRatioOverride === '9:16' || aspectRatioOverride === '1:1'
+  if (!isOnDemandVariant) {
     await supabase
       .from('concepts')
       .update({ image_status: 'generating' })
@@ -83,13 +84,14 @@ export async function POST(req: NextRequest) {
   try {
     const model = batch.nb2_model ?? 'gemini-3.1-flash-image-preview'
     const aspectRatio = aspectRatioOverride ?? batch.nb2_aspect_ratios?.[0] ?? '1:1'
-    const is916 = aspectRatio === '9:16' && aspectRatioOverride === '9:16'
+    const is916 = aspectRatioOverride === '9:16'
+    const is11 = aspectRatioOverride === '1:1'
 
     // Build content parts
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = []
 
-    if (is916) {
-      // 9:16 mode: send existing 1:1 image + simple recreation prompt
+    if (is916 || is11) {
+      // On-demand format variant: send existing primary image + simple recreation prompt
       const existingImageUrl = concept.image_url
       if (existingImageUrl) {
         try {
@@ -104,7 +106,10 @@ export async function POST(req: NextRequest) {
           // Continue without existing image
         }
       }
-      parts.push({ text: 'Recreate this exact ad for Instagram Stories / Reels — 9:16 vertical format. Keep all visual elements, text, colors, and style identical. Only adapt the composition and layout to fit the tall vertical canvas.' })
+      const variantInstruction = is916
+        ? 'Recreate this exact ad for Instagram Stories / Reels — 9:16 tall vertical format. Keep all visual elements, text, colors, and style identical. Only adapt the composition and layout to fit the tall vertical canvas.'
+        : 'Recreate this exact ad in a 1:1 square format. Keep all visual elements, text, colors, and style identical. Only adapt the composition to fit the square canvas.'
+      parts.push({ text: variantInstruction })
     } else if (editFromExisting && concept.image_url) {
       // Edit-from-existing mode: send generated image + correction instruction
       try {
@@ -195,7 +200,7 @@ export async function POST(req: NextRequest) {
     // Upload to Supabase Storage via admin client (bypasses RLS)
     const ext = mimeType.includes('jpeg') ? 'jpg' : 'png'
     const imageBuffer = Buffer.from(imageBytes, 'base64')
-    const suffix = is916 ? '_9x16' : ''
+    const suffix = is916 ? '_9x16' : is11 ? '_1x1' : ''
     const storagePath = `${user.id}/${batchId}/${targetConceptId}${suffix}.${ext}`
 
     await supabaseAdmin.storage
@@ -212,16 +217,13 @@ export async function POST(req: NextRequest) {
     const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`
 
     if (is916) {
-      // Store in image_url_9_16, don't change image_status
-      await supabase
-        .from('concepts')
-        .update({ image_url_9_16: cacheBustedUrl })
-        .eq('id', targetConceptId)
+      await supabase.from('concepts').update({ image_url_9_16: cacheBustedUrl }).eq('id', targetConceptId)
+      return NextResponse.json({ targetConceptId, imageUrl916: cacheBustedUrl })
+    }
 
-      return NextResponse.json({
-        targetConceptId,
-        imageUrl916: cacheBustedUrl,
-      })
+    if (is11) {
+      await supabase.from('concepts').update({ image_url_1_1: cacheBustedUrl }).eq('id', targetConceptId)
+      return NextResponse.json({ targetConceptId, imageUrl11: cacheBustedUrl })
     }
 
     // Update concept with image URL and done status
@@ -253,8 +255,8 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[generate/images] Error generating image for concept', targetConceptId, err)
 
-    // Mark concept as error so loop can continue with others (skip for 9:16 — don't clobber existing status)
-    if (!aspectRatioOverride || aspectRatioOverride !== '9:16') {
+    // Mark concept as error so loop can continue with others (skip for on-demand variants — don't clobber existing status)
+    if (!isOnDemandVariant) {
       await supabase
         .from('concepts')
         .update({ image_status: 'error' })

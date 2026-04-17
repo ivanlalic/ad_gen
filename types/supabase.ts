@@ -98,6 +98,7 @@ export type Database = {
           id: string
           image_status: string | null
           image_url: string | null
+          image_url_1_1: string | null
           image_url_9_16: string | null
           is_pinned: boolean
           nb2_prompt: string | null
@@ -116,6 +117,7 @@ export type Database = {
           id?: string
           image_status?: string | null
           image_url?: string | null
+          image_url_1_1?: string | null
           image_url_9_16?: string | null
           is_pinned?: boolean
           nb2_prompt?: string | null
@@ -134,6 +136,7 @@ export type Database = {
           id?: string
           image_status?: string | null
           image_url?: string | null
+          image_url_1_1?: string | null
           image_url_9_16?: string | null
           is_pinned?: boolean
           nb2_prompt?: string | null

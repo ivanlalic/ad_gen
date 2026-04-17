@@ -17,8 +17,7 @@ import {
 } from 'lucide-react'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { SafeZonePreview } from '@/components/safe-zone-preview'
-import type { AdFormat } from '@/lib/ad-formats'
+import { AD_FORMATS, type AdFormat } from '@/lib/ad-formats'
 
 interface ConceptCardProps {
   concept: {
@@ -32,6 +31,7 @@ interface ConceptCardProps {
     source_grounding: string
     image_url: string | null
     image_url_9_16: string | null
+    image_url_1_1: string | null
     image_status: string | null
     is_pinned: boolean | null
     nb2_prompt: string | null
@@ -50,8 +50,17 @@ const ASPECT_PADDING: Record<string, string> = {
   '2:3': '150%',
 }
 
+const ALL_FORMATS: AdFormat[] = ['4:5', '9:16', '1:1']
+
+const ASPECT_RATIO_MAP: Record<AdFormat, string> = {
+  '4:5': '4 / 5',
+  '9:16': '9 / 16',
+  '1:1': '1 / 1',
+}
+
 export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCardProps) {
   const router = useRouter()
+  const primaryFormat: AdFormat = (format ?? (aspectRatio as AdFormat) ?? '4:5')
   const [copiedHeadline, setCopiedHeadline] = useState(false)
   const [copiedBody, setCopiedBody] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
@@ -63,14 +72,24 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
   const [showAdvancedPrompt, setShowAdvancedPrompt] = useState(false)
   const correctionFileRef = useRef<HTMLInputElement>(null)
   const [isRetrying, setIsRetrying] = useState(false)
-  const [isGenerating916, setIsGenerating916] = useState(false)
+  const [generatingVariant, setGeneratingVariant] = useState<AdFormat | null>(null)
   const [imageUrl916, setImageUrl916] = useState<string | null>(concept.image_url_9_16)
-  const [modalView, setModalView] = useState<'1:1' | '9:16'>('1:1')
+  const [imageUrl11, setImageUrl11] = useState<string | null>(concept.image_url_1_1)
+  const [activeTab, setActiveTab] = useState<AdFormat>(primaryFormat)
+  const [modalView, setModalView] = useState<AdFormat>(primaryFormat)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
-  const [showSafeZones, setShowSafeZones] = useState(false)
 
-  const paddingBottom = ASPECT_PADDING[aspectRatio] ?? '100%'
+  // Map format tab → image url
+  function getVariantUrl(fmt: AdFormat): string | null {
+    if (fmt === primaryFormat) return concept.image_url
+    if (fmt === '9:16') return imageUrl916
+    if (fmt === '1:1') return imageUrl11
+    return null
+  }
+
+  const activeImageUrl = getVariantUrl(activeTab)
+  const paddingBottom = ASPECT_PADDING[activeTab] ?? ASPECT_PADDING[aspectRatio] ?? '100%'
 
   function copyText(text: string, which: 'headline' | 'body') {
     navigator.clipboard.writeText(text).then(() => {
@@ -177,26 +196,28 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
     reader.readAsDataURL(file)
   }
 
-  async function handleGenerate916() {
-    if (isGenerating916) return
-    setIsGenerating916(true)
+  async function handleGenerateVariant(fmt: AdFormat) {
+    if (generatingVariant) return
+    setGeneratingVariant(fmt)
+    setActiveTab(fmt)
     try {
       const res = await fetch('/api/generate/images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchId: concept.batch_id, conceptId: concept.id, aspectRatio: '9:16' }),
+        body: JSON.stringify({ batchId: concept.batch_id, conceptId: concept.id, aspectRatio: fmt }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Error generando 9:16 (${res.status})`)
+        throw new Error(err.error || `Error generando ${fmt} (${res.status})`)
       }
       const data = await res.json()
       if (data.imageUrl916) setImageUrl916(data.imageUrl916)
+      if (data.imageUrl11) setImageUrl11(data.imageUrl11)
       router.refresh()
     } catch (err) {
-      gooeyToast.error(err instanceof Error ? err.message : 'Error al generar 9:16')
+      gooeyToast.error(err instanceof Error ? err.message : `Error al generar ${fmt}`)
     } finally {
-      setIsGenerating916(false)
+      setGeneratingVariant(null)
     }
   }
 
@@ -213,25 +234,51 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
   }
 
   function renderImageArea() {
+    // Non-primary variant tab: may not be generated yet
+    const isVariantTab = activeTab !== primaryFormat
+    const isVariantGenerating = generatingVariant === activeTab
+
+    if (isVariantTab) {
+      if (isVariantGenerating) {
+        return (
+          <div className="absolute inset-0 bg-muted animate-pulse flex flex-col items-center justify-center gap-2">
+            <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <span className="text-[11px] text-muted-foreground">Generando {activeTab}...</span>
+          </div>
+        )
+      }
+      if (activeImageUrl) {
+        return (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={activeImageUrl}
+            alt={concept.headline ?? 'Concept image'}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )
+      }
+      // Not generated — show prompt
+      return (
+        <div
+          className="absolute inset-0 bg-muted/20 border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => handleGenerateVariant(activeTab)}
+        >
+          <span className="text-[11px] text-muted-foreground/70">Generar versión {activeTab}</span>
+          <span className="text-[9px] text-muted-foreground/40">Click para generar</span>
+        </div>
+      )
+    }
+
+    // Primary format tab
     if (concept.image_status === 'done' && concept.image_url) {
       return (
         <>
-          <div className="absolute inset-0">
-            {format ? (
-              <SafeZonePreview
-                imageUrl={concept.image_url}
-                format={format}
-                showOverlay={showSafeZones}
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={concept.image_url}
-                alt={concept.headline ?? 'Concept image'}
-                className="w-full h-full object-cover"
-              />
-            )}
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={concept.image_url}
+            alt={concept.headline ?? 'Concept image'}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
           {isRegenerating && (
             <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
               <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -257,7 +304,6 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
         </div>
       )
     }
-    // pending / null
     return (
       <div className="absolute inset-0 bg-muted/30 flex items-center justify-center">
         <span className="text-[11px] text-muted-foreground/50">En cola</span>
@@ -276,15 +322,59 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
     )
   }
 
-  const canDownload = concept.image_status === 'done' && concept.image_url
+  const canDownload = concept.image_status === 'done' && activeImageUrl
   const canRetry = concept.image_status === 'error' || concept.image_status === 'pending'
+  const formatSpec = AD_FORMATS[activeTab]
 
   return (
     <motion.div
       layout
       className="group flex flex-col rounded-xl border border-border bg-card overflow-hidden transition-colors duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
     >
-      {/* Image area — dynamic aspect ratio */}
+      {/* Format tabs */}
+      <div className="flex items-center gap-1 px-2 pt-2 pb-1">
+        {ALL_FORMATS.map((fmt) => {
+          const isActive = activeTab === fmt
+          const hasImage = fmt === primaryFormat
+            ? concept.image_status === 'done' && !!concept.image_url
+            : !!(fmt === '9:16' ? imageUrl916 : imageUrl11)
+          const isLoading = generatingVariant === fmt
+          return (
+            <button
+              key={fmt}
+              type="button"
+              onClick={() => {
+                if (hasImage || fmt === primaryFormat) {
+                  setActiveTab(fmt)
+                } else {
+                  handleGenerateVariant(fmt)
+                }
+              }}
+              disabled={!!generatingVariant && !isLoading}
+              className={[
+                'flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary border-primary/30'
+                  : 'bg-secondary/60 text-muted-foreground border-border hover:text-foreground hover:bg-secondary',
+                !hasImage && fmt !== primaryFormat && !isActive ? 'opacity-60' : '',
+              ].join(' ')}
+            >
+              {fmt}
+              {isLoading
+                ? <span className="w-2 h-2 rounded-full border border-current border-t-transparent animate-spin inline-block" />
+                : hasImage
+                  ? <span className="text-green-400">✓</span>
+                  : null
+              }
+            </button>
+          )
+        })}
+        <span className="ml-auto text-[9px] text-muted-foreground/40">
+          {formatSpec.width}×{formatSpec.height}
+        </span>
+      </div>
+
+      {/* Image area — dynamic aspect ratio per active tab */}
       <div className="relative w-full overflow-hidden" style={{ paddingBottom }}>
         {renderImageArea()}
 
@@ -292,8 +382,8 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
           {canDownload && (
             <a
-              href={concept.image_url!}
-              download={`concept-${concept.id.slice(0, 8)}.jpg`}
+              href={activeImageUrl!}
+              download={`concept-${concept.id.slice(0, 8)}-${activeTab.replace(':', 'x')}.jpg`}
               target="_blank"
               rel="noopener noreferrer"
               title="Descargar imagen"
@@ -303,7 +393,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
               <Download size={15} />
             </a>
           )}
-          {canRetry && (
+          {canRetry && activeTab === primaryFormat && (
             <button
               onClick={handleRetry}
               disabled={isRetrying}
@@ -315,25 +405,11 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
           )}
           {canDownload && (
             <button
-              onClick={() => { setModalView('1:1'); setShowImageModal(true) }}
+              onClick={() => { setModalView(activeTab); setShowImageModal(true) }}
               title="Ver imagen grande"
               className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors backdrop-blur-sm"
             >
               <Eye size={15} />
-            </button>
-          )}
-          {canDownload && (
-            <button
-              onClick={handleGenerate916}
-              disabled={isGenerating916}
-              title="Generar versión 9:16"
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors backdrop-blur-sm disabled:opacity-50 text-[11px] font-medium leading-none"
-            >
-              {isGenerating916 ? (
-                <div className="w-3.5 h-3.5 rounded-full border border-white border-t-transparent animate-spin" />
-              ) : (
-                '9:16'
-              )}
             </button>
           )}
           <button
@@ -346,22 +422,6 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
           </button>
         </div>
       </div>
-
-      {/* Safe zone toggle — only when format known and image done */}
-      {format && concept.image_status === 'done' && concept.image_url && (
-        <button
-          type="button"
-          onClick={() => setShowSafeZones(s => !s)}
-          className={[
-            'px-3 py-1.5 text-[10px] font-medium border-b border-border transition-colors w-full text-left',
-            showSafeZones
-              ? 'bg-primary/10 text-primary border-primary/20'
-              : 'bg-secondary/50 text-muted-foreground hover:text-foreground',
-          ].join(' ')}
-        >
-          {showSafeZones ? '👁 Ocultar safe zones' : '👁 Ver safe zones'}
-        </button>
-      )}
 
       {/* Content */}
       <div className="flex flex-col flex-1 p-4 gap-3">
@@ -435,44 +495,6 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
             </button>
           </div>
         </div>
-
-        {/* 9:16 thumbnail */}
-        <AnimatePresence>
-          {imageUrl916 && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 pt-2 border-t border-border"
-            >
-              <span className="text-[10px] text-muted-foreground/60 shrink-0">9:16</span>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageUrl916}
-                alt="9:16 version"
-                className="h-12 w-auto rounded object-cover border border-border cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => { setModalView('9:16'); setShowImageModal(true) }}
-              />
-              <button
-                type="button"
-                onClick={() => { setModalView('9:16'); setShowImageModal(true) }}
-                className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-                title="Ver 9:16 en grande"
-              >
-                <Eye size={11} />
-              </button>
-              <a
-                href={imageUrl916}
-                download={`concept-${concept.id.slice(0, 8)}-9x16.jpg`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Download size={11} />
-              </a>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Prompt panel — edit image or regenerate from scratch */}
         <AnimatePresence>
@@ -606,40 +628,47 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
         <DialogContent className="max-w-[90vw] w-fit max-h-[92vh] p-0 overflow-hidden flex flex-col">
           <DialogTitle className="sr-only">{concept.headline ?? 'Imagen del concepto'}</DialogTitle>
 
-          {/* Version toggle — only show if both exist */}
-          {concept.image_url && imageUrl916 && (
-            <div className="flex items-center gap-1 px-3 pt-3 shrink-0">
-              {(['1:1', '9:16'] as const).map((v) => (
+          {/* Version toggle */}
+          <div className="flex items-center gap-1 px-3 pt-3 shrink-0">
+            {ALL_FORMATS.map((fmt) => {
+              const url = getVariantUrl(fmt)
+              if (!url) return null
+              return (
                 <button
-                  key={v}
+                  key={fmt}
                   type="button"
-                  onClick={() => setModalView(v)}
+                  onClick={() => setModalView(fmt)}
                   className={[
                     'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                    modalView === v
+                    modalView === fmt
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-muted-foreground hover:text-foreground',
                   ].join(' ')}
                 >
-                  {v}
+                  {fmt}
                 </button>
-              ))}
-              <a
-                href={modalView === '9:16' ? imageUrl916! : concept.image_url!}
-                download={`concept-${concept.id.slice(0, 8)}${modalView === '9:16' ? '-9x16' : ''}.jpg`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors"
-                title="Descargar"
-              >
-                <Download size={14} />
-              </a>
-            </div>
-          )}
+              )
+            })}
+            {(() => {
+              const url = getVariantUrl(modalView)
+              return url ? (
+                <a
+                  href={url}
+                  download={`concept-${concept.id.slice(0, 8)}-${modalView.replace(':', 'x')}.jpg`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                  title="Descargar"
+                >
+                  <Download size={14} />
+                </a>
+              ) : null
+            })()}
+          </div>
 
           {/* Image */}
           {(() => {
-            const src = modalView === '9:16' && imageUrl916 ? imageUrl916 : concept.image_url
+            const src = getVariantUrl(modalView)
             return src ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

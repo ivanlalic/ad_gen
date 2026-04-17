@@ -100,16 +100,46 @@ export function getFormatDimensions(format: AdFormat): { width: number; height: 
 }
 
 export function getSafeZonePromptInstructions(format: AdFormat): string {
-  const spec = AD_FORMATS[format]
-  const sz = spec.safeZones
+  if (format === '9:16') {
+    return `
+COMPOSITION GUIDELINES (internal directives — do NOT render any of this as text, labels, or markings in the image):
 
-  return `CANVAS: ${spec.width}x${spec.height}px (${format} ratio) — ${spec.label} — ${spec.description}
+This is a tall vertical creative designed to be viewed on a phone screen. Compose the scene so that:
+- The main subject and all critical visual elements are placed in the CENTRAL BAND of the frame — roughly the middle vertical portion of the image, well below the top edge and well above the bottom edge
+- Leave the upper strip of the image relatively clear and uncluttered — this area will be covered by platform interface elements when the ad runs
+- Leave the lower portion of the image relatively clear — this area will also be covered by platform interface elements including buttons and captions
+- Any text overlay or logo you design must live in the central band only, never in the top strip or the lower portion
+- Keep comfortable breathing room from the left and right edges
+- Visual hierarchy: hero subject centered, supporting elements radiating from the center
 
-SAFE ZONE CONSTRAINTS (Meta ${format} placement):
-- Top margin: keep top ${sz.top}% of image free of essential elements${format === '9:16' ? ' (Meta UI: profile picture, advertiser name, mute button)' : ''}
-- Bottom margin: keep bottom ${sz.bottom}% of image free of essential elements${format === '9:16' ? ' (Meta UI: CTA button, ad caption, Reels controls)' : ''}
-- Side margins: keep ${sz.left}% from each side edge clear
+The final image must contain ONLY the intentional visual scene described below. Do not draw guides, rulers, frames, labels, border lines, area indicators, or any instructional markings of any kind.
+`.trim()
+  }
 
-COMPOSITION RULES FOR THIS FORMAT:
-${spec.compositionNotes}`
+  if (format === '1:1') {
+    return `
+COMPOSITION GUIDELINES (internal directives — do NOT render any of this as text, labels, or markings in the image):
+
+This is a square creative. Compose the scene so that:
+- The main subject is centered and occupies a generous, prominent portion of the frame
+- Keep comfortable breathing room between all elements and every edge — nothing should feel cramped against the border
+- Any text overlay stays well inside the frame, away from all edges
+- Supporting elements balance around the central subject
+
+The final image must contain ONLY the intentional visual scene described below. Do not draw guides, rulers, frames, labels, border lines, area indicators, or any instructional markings of any kind.
+`.trim()
+  }
+
+  // 4:5 (default)
+  return `
+COMPOSITION GUIDELINES (internal directives — do NOT render any of this as text, labels, or markings in the image):
+
+This is a vertical rectangular creative. Compose the scene so that:
+- The main subject occupies the upper and central area of the frame with strong visual presence
+- Keep comfortable breathing room between all elements and every edge
+- Any text overlay stays well inside the frame, away from all edges
+- Logo or branding elements placed in the upper area with clear space around them
+
+The final image must contain ONLY the intentional visual scene described below. Do not draw guides, rulers, frames, labels, border lines, area indicators, or any instructional markings of any kind.
+`.trim()
 }
