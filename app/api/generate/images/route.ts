@@ -4,8 +4,52 @@ import { GoogleGenAI } from '@google/genai'
 export const maxDuration = 300
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { generateWithFal } from '@/lib/image-providers'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
+
+const GEMINI_RETRY_DELAYS = [2000, 5000, 10000]
+
+function is503Error(err: unknown): boolean {
+  if (!err) return false
+  const msg = String((err as any)?.message ?? err)
+  return msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('overloaded') || (err as any)?.status === 503
+}
+
+async function generateContentWithRetry(
+  model: string,
+  parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
+  aspectRatio: string,
+): Promise<{ imageBytes: string; mimeType: string }> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= GEMINI_RETRY_DELAYS.length; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts }],
+        config: {
+          responseModalities: ['IMAGE'],
+          imageConfig: { aspectRatio },
+        },
+      })
+      for (const part of response.candidates?.[0]?.content?.parts ?? []) {
+        if (part.inlineData?.data) {
+          return { imageBytes: part.inlineData.data, mimeType: part.inlineData.mimeType ?? 'image/png' }
+        }
+      }
+      throw new Error('No image data returned from Gemini')
+    } catch (err) {
+      lastError = err
+      if (is503Error(err) && attempt < GEMINI_RETRY_DELAYS.length) {
+        console.log(`[Gemini 503] attempt ${attempt + 1}, retrying in ${GEMINI_RETRY_DELAYS[attempt]}ms`)
+        await new Promise(r => setTimeout(r, GEMINI_RETRY_DELAYS[attempt]))
+        continue
+      }
+      throw err
+    }
+  }
+  throw lastError
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -173,40 +217,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const response = await ai.models.generateContent({
-      model,
-      contents: [{ role: 'user', parts }],
-      config: {
-        responseModalities: ['IMAGE'],
-        imageConfig: { aspectRatio },
-      },
-    })
+    // Generate image — Gemini with retry, fal.ai fallback on persistent 503
+    let imageBuffer: Buffer
+    let imageProvider = 'gemini'
+    let ext = 'png'
 
-    // Extract inline image bytes from response parts
-    let imageBytes: string | null = null
-    let mimeType = 'image/png'
-    for (const part of response.candidates?.[0]?.content?.parts ?? []) {
-      if (part.inlineData?.data) {
-        imageBytes = part.inlineData.data
-        mimeType = part.inlineData.mimeType ?? 'image/png'
-        break
+    try {
+      const { imageBytes, mimeType } = await generateContentWithRetry(model, parts, aspectRatio)
+      imageBuffer = Buffer.from(imageBytes, 'base64')
+      ext = mimeType.includes('jpeg') ? 'jpg' : 'png'
+    } catch (geminiErr: unknown) {
+      if (is503Error(geminiErr) || is11 || is916) {
+        // For on-demand variants (which send existing image as reference), fal can't replicate — rethrow
+        if (is916 || is11) throw geminiErr
       }
+      console.warn('[generate/images] Gemini failed, trying fal.ai fallback:', (geminiErr as any)?.message)
+      const textPart = parts.find((p): p is { text: string } => 'text' in p)
+      imageBuffer = await generateWithFal({
+        prompt: textPart?.text ?? '',
+        geminiModel: model,
+        aspectRatio,
+        negativePrompt: batch.nb2_negative_prompt ?? undefined,
+      })
+      imageProvider = 'fal'
+      ext = 'jpg'
     }
-
-    if (!imageBytes) {
-      throw new Error('No image data returned from Gemini')
-    }
-
-    // Upload to Supabase Storage via admin client (bypasses RLS)
-    const ext = mimeType.includes('jpeg') ? 'jpg' : 'png'
-    const imageBuffer = Buffer.from(imageBytes, 'base64')
     const suffix = is916 ? '_9x16' : is11 ? '_1x1' : ''
     const storagePath = `${user.id}/${batchId}/${targetConceptId}${suffix}.${ext}`
 
+    const contentType = ext === 'jpg' ? 'image/jpeg' : 'image/png'
     await supabaseAdmin.storage
       .from('generated-images')
       .upload(storagePath, imageBuffer, {
-        contentType: mimeType,
+        contentType,
         upsert: true,
       })
 
@@ -229,7 +272,7 @@ export async function POST(req: NextRequest) {
     // Update concept with image URL and done status
     await supabase
       .from('concepts')
-      .update({ image_url: cacheBustedUrl, image_status: 'done' })
+      .update({ image_url: cacheBustedUrl, image_status: 'done', image_provider: imageProvider })
       .eq('id', targetConceptId)
 
     // Check remaining pending concepts

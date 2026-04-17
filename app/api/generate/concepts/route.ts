@@ -122,7 +122,8 @@ ${personInstruction ? personInstruction + '\n' : ''}COMPOSITION: ${concept.headl
 TEXT OVERLAY: Show headline text "${concept.headline}" prominently. Below it, show body text "${shortBody}". Keep text short — max 2 lines for body. All text must be fully visible, not cut off at any edge, with clear padding from borders.${offerBadgeInstruction ? ' ' + offerBadgeInstruction : ''}
 ${styleLine}BRAND COLORS: primary ${product.hex_primary ?? '#6366f1'}, secondary ${product.hex_secondary ?? '#1a1a24'}
 ASPECT RATIO: ${batch.nb2_aspect_ratios?.[0] ?? '1:1'}
-AVOID: ${batch.nb2_negative_prompt ?? 'blurry, low quality, distorted faces, wrong text, watermark, generic stock photo, plastic look, cropped text, cut-off text, text touching edges, more than 3 lines of body text'}`
+AVOID: ${batch.nb2_negative_prompt ?? 'blurry, low quality, distorted faces, wrong text, watermark, generic stock photo, plastic look, cropped text, cut-off text, text touching edges, more than 3 lines of body text'}
+QUALITY: High quality commercial product advertisement. Professional ad creative. Sharp focus. Studio quality. No artifacts. No watermarks. No text other than specified above.`
 }
 
 /**

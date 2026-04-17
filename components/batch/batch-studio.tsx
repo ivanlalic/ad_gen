@@ -18,7 +18,8 @@ const COST_PER_IMAGE_NB2 = 0.025 // ~$0.40-0.80 per 20 images
 const CONCEPT_MODELS = [
   { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini Flash Lite', desc: 'Más rápido, más barato', badge: 'Recomendado' },
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku', desc: 'Rápido, copy sólido' },
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet', desc: 'Mejor calidad, más lento' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet', desc: 'Equilibrio calidad/velocidad' },
+  { value: 'claude-opus-4-6', label: 'Claude Opus', desc: 'Máxima calidad, copy profundo' },
 ]
 
 interface ProductData {
@@ -102,6 +103,9 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const [numAngles, setNumAngles] = useState(3)
   const [generatedAngles, setGeneratedAngles] = useState<Array<AngleConfig & { selected: boolean }>>([])
   const [anglesLoading, setAnglesLoading] = useState(false)
+  const [manualAngleInput, setManualAngleInput] = useState('')
+  const [improvingAngle, setImprovingAngle] = useState(false)
+  const [improvedAnglePreview, setImprovedAnglePreview] = useState<{ title: string; type: string; description: string } | null>(null)
 
   const [launching, setLaunching] = useState(false)
 
@@ -150,6 +154,33 @@ async function handleGenerateAngles() {
       if (target?.selected && selected.length <= 1) return prev
       return prev.map(a => a.id === id ? { ...a, selected: !a.selected } : a)
     })
+  }
+
+  async function handleImproveAngle() {
+    if (!manualAngleInput.trim() || improvingAngle) return
+    setImprovingAngle(true)
+    setImprovedAnglePreview(null)
+    try {
+      const res = await fetch('/api/generate/improve-angle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawInput: manualAngleInput, productName: product.name, niche: product.niche }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error mejorando ángulo')
+      setImprovedAnglePreview(data.angle)
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error mejorando ángulo')
+    } finally {
+      setImprovingAngle(false)
+    }
+  }
+
+  function handleAddManualAngle(angle: { title: string; type: string; description: string }) {
+    const nextId = Math.max(0, ...generatedAngles.map(a => a.id)) + 1
+    setGeneratedAngles(prev => [...prev, { id: nextId, title: angle.title, description: angle.description, selected: true }])
+    setManualAngleInput('')
+    setImprovedAnglePreview(null)
   }
 
   async function handleLaunch() {
@@ -463,12 +494,73 @@ async function handleGenerateAngles() {
 
                   <button
                     type="button"
-                    onClick={() => { setGeneratedAngles([]); handleGenerateAngles() }}
+                    onClick={() => { setGeneratedAngles([]); setImprovedAnglePreview(null); handleGenerateAngles() }}
                     disabled={anglesLoading}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                   >
                     Regenerar ángulos
                   </button>
+
+                  {/* Manual angle add */}
+                  <div className="pt-2 border-t border-border space-y-2">
+                    <p className="text-xs text-muted-foreground font-medium">+ Agregar ángulo propio</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={manualAngleInput}
+                        onChange={e => { setManualAngleInput(e.target.value); setImprovedAnglePreview(null) }}
+                        placeholder="Ej: manchas sol cuarenta"
+                        onKeyDown={e => e.key === 'Enter' && handleImproveAngle()}
+                        className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleImproveAngle}
+                        disabled={!manualAngleInput.trim() || improvingAngle}
+                        className="px-3 py-2 bg-secondary border border-border rounded-lg text-xs font-medium text-foreground hover:bg-secondary/80 transition-colors disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {improvingAngle ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin inline-block" />
+                            Mejorando...
+                          </span>
+                        ) : '✨ Mejorar'}
+                      </button>
+                    </div>
+
+                    {improvedAnglePreview && (
+                      <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-foreground">{improvedAnglePreview.title}</p>
+                          <span className={[
+                            'shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider',
+                            improvedAnglePreview.type === 'pain' ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400',
+                          ].join(' ')}>
+                            {improvedAnglePreview.type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{improvedAnglePreview.description}</p>
+                        <button
+                          type="button"
+                          onClick={() => handleAddManualAngle(improvedAnglePreview)}
+                          className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                        >
+                          + Agregar a la lista
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Quick add without improving */}
+                    {manualAngleInput.trim() && !improvedAnglePreview && !improvingAngle && (
+                      <button
+                        type="button"
+                        onClick={() => handleAddManualAngle({ title: manualAngleInput.trim(), type: 'pain', description: '' })}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Agregar sin mejorar
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -500,7 +592,7 @@ async function handleGenerateAngles() {
           <p className="text-xs text-muted-foreground mb-3">
             Modelo que genera los copies y conceptos.
           </p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {CONCEPT_MODELS.map(model => (
               <button
                 key={model.value}
