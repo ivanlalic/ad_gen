@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
 import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
+import { getSafeZonePromptInstructions, DEFAULT_FORMAT, type AdFormat } from '@/lib/ad-formats'
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
@@ -27,7 +28,8 @@ function buildNB2Prompt(
   concept: ConceptOutput,
   product: any,
   batch: any,
-  niche: any
+  niche: any,
+  format?: AdFormat
 ): string {
   const styleInstructions: Record<string, string> = {
     'photorealistic': 'Ultra-realistic product photography, natural lighting',
@@ -107,7 +109,12 @@ function buildNB2Prompt(
     ? `PERSON: Include a realistic, candid-style portrait of a ${nationality} ${personSex}, approximately ${ageMin}-${ageMax} years old. They should look like a genuine customer — natural expression, relatable appearance, NOT a stock photo model. Use soft, flattering light. Their face or reaction should convey satisfaction with the product.`
     : ''
 
-  return `IMPORTANT: The labels below (LIGHTING, CAMERA, etc.) are composition directives — do NOT render them as text in the image.
+  const resolvedFormat = (format ?? (batch.nb2_aspect_ratios?.[0] as AdFormat) ?? DEFAULT_FORMAT) as AdFormat
+  const safeZoneBlock = getSafeZonePromptInstructions(resolvedFormat)
+
+  return `${safeZoneBlock}
+
+IMPORTANT: The labels below (LIGHTING, CAMERA, etc.) are composition directives — do NOT render them as text in the image.
 
 ${lightingLine}CAMERA: ${cameraMap[concept.template_number] ?? 'Product-focused, clean composition'}
 SUBJECT: ${concept.visual_description}

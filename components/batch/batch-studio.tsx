@@ -8,6 +8,8 @@ import { gooeyToast } from '@/components/ui/goey-toaster'
 import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
+import { FormatSelector } from '@/components/format-selector'
+import { DEFAULT_FORMAT, type AdFormat } from '@/lib/ad-formats'
 
 // Cost estimates per concept
 const COST_PER_CONCEPT_CLAUDE = 0.005 // ~$0.05-0.15 per 20 concepts
@@ -59,11 +61,6 @@ const QUANTITY_OPTIONS = [
   { value: 50, label: '50', time: '~5 min', cost: '$1.50' },
 ]
 
-const ASPECT_RATIOS = [
-  { value: '1:1', label: '1:1', desc: 'Feed cuadrado' },
-  { value: '4:5', label: '4:5', desc: 'Feed vertical' },
-  { value: '9:16', label: '9:16', desc: 'Stories / Reels' },
-]
 
 const STYLE_PRESETS = [
   { value: 'auto', label: 'Auto (IA elige)', desc: 'Gemini elige el estilo según el concepto' },
@@ -88,7 +85,8 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const [totalConcepts, setTotalConcepts] = useState(20)
   const [keyOffers, setKeyOffers] = useState('')
   const [selectedTemplates, setSelectedTemplates] = useState<number[]>(TEMPLATES.map(t => t.number))
-  const [aspectRatios, setAspectRatios] = useState<string[]>(['1:1'])
+  const [primaryFormat, setPrimaryFormat] = useState<AdFormat>(DEFAULT_FORMAT)
+  const [aspectRatios, setAspectRatios] = useState<string[]>([DEFAULT_FORMAT])
   const [nb2Model, setNb2Model] = useState('gemini-3.1-flash-image-preview')
   const [conceptModel, setConceptModel] = useState('gemini-3.1-flash-lite-preview')
   const [stylePreset, setStylePreset] = useState('auto')
@@ -126,15 +124,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
     )
   }
 
-  function toggleAspectRatio(value: string) {
-    setAspectRatios((prev: string[]) =>
-      prev.includes(value)
-        ? prev.filter((v: string) => v !== value)
-        : [...prev, value]
-    )
-  }
-
-  async function handleGenerateAngles() {
+async function handleGenerateAngles() {
     setAnglesLoading(true)
     try {
       const res = await fetch('/api/generate/angles', {
@@ -163,8 +153,8 @@ export function BatchStudio({ product }: BatchStudioProps) {
   }
 
   async function handleLaunch() {
-    if (aspectRatios.length === 0) {
-      gooeyToast.error('Seleccioná al menos un formato')
+    if (!primaryFormat) {
+      gooeyToast.error('Seleccioná un formato')
       return
     }
 
@@ -485,29 +475,21 @@ export function BatchStudio({ product }: BatchStudioProps) {
           )}
         </section>
 
-        {/* 4. Formatos */}
+        {/* 4. Formato */}
         <section>
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            4. Formatos
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            4. Formato principal
           </h2>
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {ASPECT_RATIOS.map(ratio => (
-              <button
-                key={ratio.value}
-                onClick={() => toggleAspectRatio(ratio.value)}
-                className={[
-                  'flex flex-col items-center gap-1 p-4 rounded-xl border transition-colors duration-150',
-                  aspectRatios.includes(ratio.value)
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-card hover:border-primary/40',
-                ].join(' ')}
-              >
-                <span className="text-lg font-semibold text-foreground">{ratio.label}</span>
-                <span className="text-[11px] text-muted-foreground">{ratio.desc}</span>
-              </button>
-            ))}
-          </div>
-
+          <p className="text-xs text-muted-foreground mb-3">
+            Determina el ratio de las imágenes y las safe zones en el prompt de generación.
+          </p>
+          <FormatSelector
+            value={primaryFormat}
+            onChange={(fmt) => {
+              setPrimaryFormat(fmt)
+              setAspectRatios([fmt])
+            }}
+          />
         </section>
 
         {/* 5. Modelo de conceptos */}
@@ -675,7 +657,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
             <div>
               <div className="text-sm font-medium text-foreground">Estimación</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {totalConcepts} conceptos · {aspectRatios.length} formato{aspectRatios.length !== 1 ? 's' : ''} · ~{Math.ceil(totalImages)} imágenes
+                {totalConcepts} conceptos · {primaryFormat} · ~{Math.ceil(totalImages)} imágenes
               </div>
             </div>
             <div className="text-right">
@@ -689,7 +671,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
         {(generationMode === 'templates' || generatedAngles.length > 0) && (
           <button
             onClick={handleLaunch}
-            disabled={launching || aspectRatios.length === 0 || (generationMode === 'angles' && generatedAngles.filter(a => a.selected).length === 0)}
+            disabled={launching || (generationMode === 'angles' && generatedAngles.filter(a => a.selected).length === 0)}
             className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {launching ? 'Lanzando...' : `Lanzar batch — ${totalConcepts} conceptos`}

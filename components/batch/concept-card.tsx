@@ -17,6 +17,8 @@ import {
 } from 'lucide-react'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { SafeZonePreview } from '@/components/safe-zone-preview'
+import type { AdFormat } from '@/lib/ad-formats'
 
 interface ConceptCardProps {
   concept: {
@@ -36,6 +38,7 @@ interface ConceptCardProps {
     angle_number?: number | null
   }
   aspectRatio?: string // e.g. '1:1', '4:5', '9:16'
+  format?: AdFormat
 }
 
 const ASPECT_PADDING: Record<string, string> = {
@@ -47,7 +50,7 @@ const ASPECT_PADDING: Record<string, string> = {
   '2:3': '150%',
 }
 
-export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) {
+export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCardProps) {
   const router = useRouter()
   const [copiedHeadline, setCopiedHeadline] = useState(false)
   const [copiedBody, setCopiedBody] = useState(false)
@@ -65,6 +68,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   const [modalView, setModalView] = useState<'1:1' | '9:16'>('1:1')
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  const [showSafeZones, setShowSafeZones] = useState(false)
 
   const paddingBottom = ASPECT_PADDING[aspectRatio] ?? '100%'
 
@@ -212,12 +216,22 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
     if (concept.image_status === 'done' && concept.image_url) {
       return (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={concept.image_url}
-            alt={concept.headline ?? 'Concept image'}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <div className="absolute inset-0">
+            {format ? (
+              <SafeZonePreview
+                imageUrl={concept.image_url}
+                format={format}
+                showOverlay={showSafeZones}
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={concept.image_url}
+                alt={concept.headline ?? 'Concept image'}
+                className="w-full h-full object-cover"
+              />
+            )}
+          </div>
           {isRegenerating && (
             <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
               <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -332,6 +346,22 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
           </button>
         </div>
       </div>
+
+      {/* Safe zone toggle — only when format known and image done */}
+      {format && concept.image_status === 'done' && concept.image_url && (
+        <button
+          type="button"
+          onClick={() => setShowSafeZones(s => !s)}
+          className={[
+            'px-3 py-1.5 text-[10px] font-medium border-b border-border transition-colors w-full text-left',
+            showSafeZones
+              ? 'bg-primary/10 text-primary border-primary/20'
+              : 'bg-secondary/50 text-muted-foreground hover:text-foreground',
+          ].join(' ')}
+        >
+          {showSafeZones ? '👁 Ocultar safe zones' : '👁 Ver safe zones'}
+        </button>
+      )}
 
       {/* Content */}
       <div className="flex flex-col flex-1 p-4 gap-3">

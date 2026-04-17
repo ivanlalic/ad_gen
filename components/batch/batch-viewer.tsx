@@ -442,7 +442,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
               initial="hidden"
               animate="visible"
             >
-              <ConceptCard concept={concept} aspectRatio={aspectRatio} />
+              <ConceptCard concept={concept} aspectRatio={aspectRatio} format={aspectRatio as any} />
             </motion.div>
           ))}
         </div>
