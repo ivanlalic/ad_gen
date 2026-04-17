@@ -85,6 +85,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
   // Form state
   const [totalConcepts, setTotalConcepts] = useState(20)
   const [keyOffers, setKeyOffers] = useState('')
+  const [batchLabel, setBatchLabel] = useState('')
   const [selectedTemplates, setSelectedTemplates] = useState<number[]>(TEMPLATES.map(t => t.number))
   const [primaryFormat, setPrimaryFormat] = useState<AdFormat>(DEFAULT_FORMAT)
   const [aspectRatios, setAspectRatios] = useState<string[]>([DEFAULT_FORMAT])
@@ -215,6 +216,7 @@ async function handleGenerateAngles() {
         generateImages,
         pinnedConceptText: generationMode === 'templates' ? (pinnedConceptText || undefined) : undefined,
         keyOffers: keyOffers.trim() || undefined,
+        label: batchLabel.trim() || undefined,
         selectedTemplates: generationMode === 'templates' && selectedTemplates.length < TEMPLATES.length ? selectedTemplates : undefined,
         generationMode,
         angleConfigs: generationMode === 'angles' ? selectedAngles : undefined,
@@ -313,10 +315,28 @@ async function handleGenerateAngles() {
           </div>
         </section>
 
-        {/* 2. Ofertas y mensajes clave */}
+        {/* 2. Label del batch */}
         <section>
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
-            2. Ofertas y mensajes clave
+            2. Label del batch <span className="normal-case font-normal text-muted-foreground">(opcional)</span>
+          </h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            Identifica el ángulo o campaña. Se usa en el nombre de los archivos descargados.
+          </p>
+          <input
+            type="text"
+            value={batchLabel}
+            onChange={e => setBatchLabel(e.target.value)}
+            placeholder="ej: manchas, arrugas, promo-verano"
+            maxLength={30}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </section>
+
+        {/* Ofertas y mensajes clave */}
+        <section>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
+            3. Ofertas y mensajes clave
           </h2>
           <p className="text-xs text-muted-foreground mb-3">
             Claude los incluirá en el copy donde sea relevante. Ej: "Envío gratis", "Paga al recibir", "Oferta 4x1".

@@ -18,6 +18,7 @@ import {
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { AD_FORMATS, type AdFormat } from '@/lib/ad-formats'
+import { buildAdFilename } from '@/lib/naming'
 
 interface ConceptCardProps {
   concept: {
@@ -39,6 +40,12 @@ interface ConceptCardProps {
   }
   aspectRatio?: string // e.g. '1:1', '4:5', '9:16'
   format?: AdFormat
+  batchMeta?: {
+    createdAt: string
+    productName: string
+    label?: string
+    indexInBatch: number
+  }
 }
 
 const ASPECT_PADDING: Record<string, string> = {
@@ -58,7 +65,7 @@ const ASPECT_RATIO_MAP: Record<AdFormat, string> = {
   '1:1': '1 / 1',
 }
 
-export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCardProps) {
+export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }: ConceptCardProps) {
   const router = useRouter()
   const primaryFormat: AdFormat = (format ?? (aspectRatio as AdFormat) ?? '4:5')
   const [copiedHeadline, setCopiedHeadline] = useState(false)
@@ -90,6 +97,17 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
 
   const activeImageUrl = getVariantUrl(activeTab)
   const paddingBottom = ASPECT_PADDING[activeTab] ?? ASPECT_PADDING[aspectRatio] ?? '100%'
+
+  function getDownloadFilename(fmt: AdFormat): string {
+    if (!batchMeta) return `concept-${concept.id.slice(0, 8)}-${fmt.replace(':', 'x')}.jpg`
+    return buildAdFilename({
+      productName: batchMeta.productName,
+      batchCreatedAt: batchMeta.createdAt,
+      label: batchMeta.label,
+      numberInBatch: batchMeta.indexInBatch,
+      format: fmt,
+    })
+  }
 
   function copyText(text: string, which: 'headline' | 'body') {
     navigator.clipboard.writeText(text).then(() => {
@@ -383,7 +401,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
           {canDownload && (
             <a
               href={activeImageUrl!}
-              download={`concept-${concept.id.slice(0, 8)}-${activeTab.replace(':', 'x')}.jpg`}
+              download={getDownloadFilename(activeTab)}
               target="_blank"
               rel="noopener noreferrer"
               title="Descargar imagen"
@@ -654,7 +672,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format }: ConceptCar
               return url ? (
                 <a
                   href={url}
-                  download={`concept-${concept.id.slice(0, 8)}-${modalView.replace(':', 'x')}.jpg`}
+                  download={getDownloadFilename(modalView)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="ml-auto p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors"

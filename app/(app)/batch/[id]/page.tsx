@@ -14,7 +14,7 @@ export default async function BatchPage({ params }: Props) {
     .from('batches')
     .select(`
       id, status, total_concepts, generate_images, nb2_aspect_ratios, nb2_model,
-      nb2_style_preset, nb2_negative_prompt,
+      nb2_style_preset, nb2_negative_prompt, created_at, label,
       products (
         id, name, hex_primary, store_id,
         stores (name)

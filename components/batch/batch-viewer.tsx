@@ -11,6 +11,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { Database } from '@/types/supabase'
+import { buildAdFilename } from '@/lib/naming'
+import type { AdFormat } from '@/lib/ad-formats'
 
 type ConceptRow = Database['public']['Tables']['concepts']['Row']
 
@@ -22,6 +24,8 @@ interface BatchViewerProps {
     total_concepts: number
     nb2_aspect_ratios: string[] | null
     nb2_model: string | null
+    created_at: string
+    label: string | null
     products: {
       id: string
       name: string
@@ -262,33 +266,57 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   }
 
   async function handleDownloadAll() {
-    const withImages = concepts.filter((c) => c.image_status === 'done' && c.image_url)
-    if (withImages.length === 0) return
+    const primaryFormat = (batch.nb2_aspect_ratios?.[0] ?? '4:5') as AdFormat
+    const productName = product?.name ?? 'ad'
+    const batchCreatedAt = batch.created_at
+    const batchLabel = batch.label ?? undefined
+
+    // Collect all variants across all concepts
+    type DownloadTask = { filename: string; url: string }
+    const tasks: DownloadTask[] = []
+    concepts.forEach((concept, i) => {
+      const numberInBatch = i + 1
+      const base = { productName, batchCreatedAt, label: batchLabel, numberInBatch }
+      if (concept.image_status === 'done' && concept.image_url) {
+        tasks.push({ filename: buildAdFilename({ ...base, format: primaryFormat }), url: concept.image_url })
+      }
+      if (concept.image_url_9_16 && primaryFormat !== '9:16') {
+        tasks.push({ filename: buildAdFilename({ ...base, format: '9:16' }), url: concept.image_url_9_16 })
+      }
+      if (concept.image_url_1_1 && primaryFormat !== '1:1') {
+        tasks.push({ filename: buildAdFilename({ ...base, format: '1:1' }), url: concept.image_url_1_1 })
+      }
+    })
+    if (tasks.length === 0) return
+
     setIsDownloadingAll(true)
     try {
       const JSZip = (await import('jszip')).default
       const zip = new JSZip()
-      const productName = (product?.name ?? 'ad')
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .slice(0, 30)
+      const CONCURRENCY = 6
+      for (let i = 0; i < tasks.length; i += CONCURRENCY) {
+        await Promise.all(tasks.slice(i, i + CONCURRENCY).map(async (task) => {
+          try {
+            const res = await fetch(task.url)
+            if (!res.ok) return
+            zip.file(task.filename, await res.blob())
+          } catch { /* skip failed */ }
+        }))
+      }
 
-      await Promise.all(
-        withImages.map(async (concept, i) => {
-          const res = await fetch(concept.image_url!)
-          const blob = await res.blob()
-          const ext = blob.type.includes('jpeg') ? 'jpg' : 'png'
-          const num = String(i + 1).padStart(2, '0')
-          zip.file(`${productName}_${num}.${ext}`, blob)
-        })
-      )
+      const now = new Date()
+      const dd = String(now.getDate()).padStart(2, '0')
+      const mm = String(now.getMonth() + 1).padStart(2, '0')
+      const aa = String(now.getFullYear()).slice(-2)
+      const hh = String(now.getHours()).padStart(2, '0')
+      const mi = String(now.getMinutes()).padStart(2, '0')
+      const zipName = `adgen_${dd}${mm}${aa}_${hh}${mi}.zip`
 
-      const content = await zip.generateAsync({ type: 'blob' })
+      const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
       const url = URL.createObjectURL(content)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${productName}_ads.zip`
+      a.download = zipName
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -442,7 +470,17 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
               initial="hidden"
               animate="visible"
             >
-              <ConceptCard concept={concept} aspectRatio={aspectRatio} format={aspectRatio as any} />
+              <ConceptCard
+                concept={concept}
+                aspectRatio={aspectRatio}
+                format={aspectRatio as any}
+                batchMeta={{
+                  createdAt: batch.created_at,
+                  productName: product?.name ?? 'ad',
+                  label: batch.label ?? undefined,
+                  indexInBatch: i + 1,
+                }}
+              />
             </motion.div>
           ))}
         </div>

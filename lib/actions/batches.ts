@@ -23,6 +23,7 @@ export interface CreateBatchData {
   generateImages: boolean
   pinnedConceptText?: string
   keyOffers?: string
+  label?: string
   selectedTemplates?: number[]
   generationMode?: 'templates' | 'angles'
   angleConfigs?: AngleConfig[]
@@ -60,6 +61,7 @@ export async function createBatch(data: CreateBatchData) {
       pinned_concept_text: data.pinnedConceptText ?? null,
       concept_model: data.conceptModel ?? null,
       key_offers: data.keyOffers ?? null,
+      label: data.label ?? null,
       selected_templates: data.selectedTemplates ?? null,
       generation_mode: data.generationMode ?? 'templates',
       angle_configs: data.angleConfigs ? (data.angleConfigs as unknown as import('@/types/supabase').Json) : null,

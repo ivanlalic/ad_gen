@@ -25,6 +25,7 @@ export type Database = {
           generation_mode: string
           id: string
           key_offers: string | null
+          label: string | null
           nb2_aspect_ratios: string[]
           nb2_model: string
           nb2_negative_prompt: string | null
@@ -46,6 +47,7 @@ export type Database = {
           generation_mode?: string
           id?: string
           key_offers?: string | null
+          label?: string | null
           nb2_aspect_ratios?: string[]
           nb2_model?: string
           nb2_negative_prompt?: string | null
@@ -67,6 +69,7 @@ export type Database = {
           generation_mode?: string
           id?: string
           key_offers?: string | null
+          label?: string | null
           nb2_aspect_ratios?: string[]
           nb2_model?: string
           nb2_negative_prompt?: string | null
