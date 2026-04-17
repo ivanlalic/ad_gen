@@ -525,6 +525,16 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
               className="overflow-hidden"
             >
               <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-secondary/50 border border-border mt-2">
+                {/* Prompt text — visible except in from-scratch mode (which has its own editable textarea) */}
+                {!(concept.image_status !== 'done' || showAdvancedPrompt) && (
+                  <textarea
+                    readOnly
+                    value={concept.nb2_prompt ?? ''}
+                    rows={5}
+                    className="w-full text-[10px] text-muted-foreground/80 font-mono leading-relaxed bg-background border border-border rounded p-2 resize-y cursor-text select-text"
+                  />
+                )}
+
                 {concept.image_status === 'done' && !showAdvancedPrompt ? (
                   /* ── EDIT IMAGE MODE (default when image exists) ── */
                   <>
