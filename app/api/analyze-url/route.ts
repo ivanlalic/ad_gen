@@ -47,43 +47,77 @@ function extractTopColors(html: string): string[] {
     .map(([hex]) => hex)
 }
 
+async function fetchPageText(url: string): Promise<{ text: string; colors: string[] }> {
+  const pageRes = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+    },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!pageRes.ok) throw new Error(`HTTP ${pageRes.status}`)
+  const html = await pageRes.text()
+  return {
+    text: stripHtml(html).slice(0, 8000),
+    colors: extractTopColors(html),
+  }
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { url, country } = await req.json()
+  const body = await req.json()
+  const country: string | undefined = body.country
   const countryConfig = country ? getCountryConfig(country) : undefined
   const outputLanguage = countryConfig ? countryConfig.language : 'Español (España)'
 
-  if (!url || !url.startsWith('http')) {
+  // Accept both `url` (single, backward compat) and `urls` (multi)
+  const rawUrls: string[] = body.urls ?? (body.url ? [body.url] : [])
+  const validUrls = rawUrls.filter((u) => typeof u === 'string' && u.startsWith('http'))
+  if (validUrls.length === 0) {
     return NextResponse.json({ error: 'URL inválida — debe comenzar con http:// o https://' }, { status: 400 })
   }
 
-  // Fetch the page server-side (avoids CORS)
-  let pageText: string
-  try {
-    const pageRes = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-      },
-      signal: AbortSignal.timeout(10_000),
-    })
-    if (!pageRes.ok) {
-      return NextResponse.json({ error: `No se pudo acceder a la URL (${pageRes.status})` }, { status: 422 })
-    }
-    const html = await pageRes.text()
-    const topColors = extractTopColors(html)
-    const colorHint = topColors.length > 0
-      ? `\n\nDETECTED BRAND COLORS (most frequent non-neutral hex colors from the page CSS/styles): ${topColors.join(', ')} — use the most prominent as hexPrimary and the second most as hexSecondary.`
-      : ''
-    pageText = stripHtml(html).slice(0, 8000) + colorHint
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+  // Fetch all pages in parallel
+  const results = await Promise.allSettled(validUrls.map(fetchPageText))
+
+  const successfulResults = results
+    .map((r, i) => ({ result: r, url: validUrls[i] }))
+    .filter((x): x is { result: PromiseFulfilledResult<{ text: string; colors: string[] }>; url: string } =>
+      x.result.status === 'fulfilled'
+    )
+
+  if (successfulResults.length === 0) {
+    const firstError = results.find((r) => r.status === 'rejected') as PromiseRejectedResult
+    const msg = firstError?.reason instanceof Error ? firstError.reason.message : String(firstError?.reason)
     return NextResponse.json({ error: `Error al acceder a la URL: ${msg}` }, { status: 422 })
   }
+
+  // Merge colors across all pages, deduplicated, top 6
+  const allColors: string[] = []
+  const colorSet = new Set<string>()
+  for (const { result } of successfulResults) {
+    for (const c of result.value.colors) {
+      if (!colorSet.has(c)) { colorSet.add(c); allColors.push(c) }
+    }
+  }
+  const topColors = allColors.slice(0, 6)
+
+  // Concatenate page texts with source labels; total budget ~12000 chars
+  const perPageBudget = Math.floor(10000 / successfulResults.length)
+  const combinedText = successfulResults
+    .map(({ result, url }, i) =>
+      `=== FUENTE ${i + 1}: ${url} ===\n${result.value.text.slice(0, perPageBudget)}`
+    )
+    .join('\n\n')
+
+  const colorHint = topColors.length > 0
+    ? `\n\nDETECTED BRAND COLORS (most frequent non-neutral hex colors from the page CSS/styles): ${topColors.join(', ')} — use the most prominent as hexPrimary and the second most as hexSecondary.`
+    : ''
+  const pageText = combinedText + colorHint
 
   const systemPrompt = `You are a product analyst for a direct-response ad agency. Extract product information from the page text and return ONLY a valid JSON object — no markdown, no explanation, no code blocks.
 
@@ -116,9 +150,13 @@ For colors: if DETECTED BRAND COLORS are listed at the end of the page text, use
 For age range: use integers, min >= 18, max <= 75, min < max.`
 
   try {
+    const userPrompt = successfulResults.length > 1
+      ? `Analyze these ${successfulResults.length} product pages and synthesize the data into a single product profile:\n\n${pageText}`
+      : `Analyze this product page and extract the data:\n\n${pageText}`
+
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-lite-preview',
-      contents: [{ role: 'user', parts: [{ text: `Analyze this product page and extract the data:\n\n${pageText}` }] }],
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
       config: { systemInstruction: systemPrompt, temperature: 0.2 },
     })
 

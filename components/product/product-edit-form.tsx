@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2, Upload, ImageIcon } from 'lucide-react'
+import { Trash2, Upload, ImageIcon, Plus, X } from 'lucide-react'
 import { updateProduct, saveProductInput, deleteProductInput, deleteProduct } from '@/lib/actions/products'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { createClient } from '@/lib/supabase/client'
@@ -96,7 +96,7 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, storeCo
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [photos, setPhotos] = useState<ProductPhoto[]>(initialPhotos)
-  const [analyzeUrl, setAnalyzeUrl] = useState('')
+  const [analyzeUrls, setAnalyzeUrls] = useState<string[]>([''])
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
 
@@ -121,14 +121,15 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, storeCo
   const [useCases, setUseCases] = useState(product.use_cases ?? '')
 
   async function handleAnalyzeUrl() {
-    if (!analyzeUrl.trim()) return
+    const urls = analyzeUrls.map((u) => u.trim()).filter((u) => u.startsWith('http'))
+    if (urls.length === 0) return
     setAnalyzing(true)
     setAnalyzeError(null)
     try {
       const res = await fetch('/api/analyze-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: analyzeUrl.trim(), country: storeCountry }),
+        body: JSON.stringify({ urls, country: storeCountry }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al analizar la URL')
@@ -181,7 +182,8 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, storeCo
         useCases: useCases || undefined,
       })
       gooeyToast.success('Producto actualizado')
-      window.location.href = `/stores/${product.store_id}`
+      router.push(`/stores/${product.store_id}`)
+      router.refresh()
     } catch (err) {
       gooeyToast.error(err instanceof Error ? err.message : 'Error al guardar')
     } finally {
@@ -253,32 +255,62 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, storeCo
           <span className="text-sm font-medium text-foreground">✨ Completar con IA</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Pegá la URL de tu landing o de un competidor para actualizar todos los campos automáticamente.
+          Pegá una o más URLs (tu landing, competidores) para actualizar todos los campos automáticamente.
         </p>
-        <div className="flex gap-2">
-          <input
-            type="url"
-            placeholder="https://tuproducto.com"
-            value={analyzeUrl}
-            onChange={(e) => { setAnalyzeUrl(e.target.value); setAnalyzeError(null) }}
-            onKeyDown={(e) => e.key === 'Enter' && handleAnalyzeUrl()}
-            disabled={analyzing}
-            className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-          />
+        <div className="space-y-2">
+          {analyzeUrls.map((url, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                type="url"
+                placeholder={i === 0 ? 'https://tuproducto.com' : 'https://competidor.com'}
+                value={url}
+                onChange={(e) => {
+                  const next = [...analyzeUrls]
+                  next[i] = e.target.value
+                  setAnalyzeUrls(next)
+                  setAnalyzeError(null)
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleAnalyzeUrl()}
+                disabled={analyzing}
+                className="flex-1 px-3 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+              />
+              {analyzeUrls.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setAnalyzeUrls(analyzeUrls.filter((_, j) => j !== i))}
+                  disabled={analyzing}
+                  className="p-2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          ))}
           <button
             type="button"
-            onClick={handleAnalyzeUrl}
-            disabled={analyzing || !analyzeUrl.trim()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 shrink-0 flex items-center gap-2"
+            onClick={() => setAnalyzeUrls([...analyzeUrls, ''])}
+            disabled={analyzing}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           >
-            {analyzing ? (
-              <>
-                <div className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
-                Analizando...
-              </>
-            ) : 'Analizar'}
+            <Plus size={13} />
+            Agregar URL
           </button>
         </div>
+        <button
+          type="button"
+          onClick={handleAnalyzeUrl}
+          disabled={analyzing || analyzeUrls.every((u) => !u.trim().startsWith('http'))}
+          className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {analyzing ? (
+            <>
+              <div className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+              Analizando{analyzeUrls.filter((u) => u.trim().startsWith('http')).length > 1 ? ` ${analyzeUrls.filter((u) => u.trim().startsWith('http')).length} URLs` : ''}...
+            </>
+          ) : (
+            `Analizar${analyzeUrls.filter((u) => u.trim().startsWith('http')).length > 1 ? ` (${analyzeUrls.filter((u) => u.trim().startsWith('http')).length} URLs)` : ''}`
+          )}
+        </button>
         {analyzeError && <p className="text-xs text-red-400">{analyzeError}</p>}
       </div>
 

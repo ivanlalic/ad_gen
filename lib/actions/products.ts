@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 export interface CreateProductData {
@@ -56,6 +57,7 @@ export async function createProduct(data: CreateProductData) {
     .single()
 
   if (error) throw new Error(error.message)
+  revalidatePath('/stores')
   return product.id
 }
 
@@ -109,6 +111,7 @@ export async function updateProduct(data: UpdateProductData) {
     .eq('id', data.productId)
 
   if (error) throw new Error(error.message)
+  revalidatePath('/stores')
 }
 
 export async function deleteProduct(productId: string) {

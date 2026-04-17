@@ -233,11 +233,13 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
       router.push(`/stores/${storeId}`)
       router.refresh()
     } catch (err) {
+      console.error('[handleFinish]', err)
       gooeyToast.update(toastId, {
         title: 'Error al guardar',
         description: err instanceof Error ? err.message : 'Intentá de nuevo',
         type: 'error',
       })
+    } finally {
       setSaving(false)
     }
   }
