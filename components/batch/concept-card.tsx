@@ -481,14 +481,14 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
         {/* Footer */}
         <div className="mt-auto pt-3 border-t border-border flex items-end justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-muted-foreground/70 italic line-clamp-2">
+            <p className="text-xs text-muted-foreground italic line-clamp-2">
               {concept.source_grounding}
             </p>
             {concept.nb2_prompt && (
               <button
                 type="button"
                 onClick={() => setShowPrompt((p) => !p)}
-                className="mt-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                className="mt-1 text-xs text-muted-foreground/70 hover:text-foreground transition-colors"
               >
                 {showPrompt ? '▲ Ocultar prompt' : '▼ Ver prompt'}
               </button>
@@ -524,21 +524,21 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-secondary/50 border border-border mt-2">
+              <div className="flex flex-col gap-3 p-3 rounded-lg bg-secondary/50 border border-border mt-2">
                 {/* Prompt text — visible except in from-scratch mode (which has its own editable textarea) */}
                 {!(concept.image_status !== 'done' || showAdvancedPrompt) && (
                   <textarea
                     readOnly
                     value={concept.nb2_prompt ?? ''}
                     rows={5}
-                    className="w-full text-[10px] text-muted-foreground/80 font-mono leading-relaxed bg-background border border-border rounded p-2 resize-y cursor-text select-text"
+                    className="w-full text-xs text-foreground/80 font-mono leading-relaxed bg-background border border-border rounded p-2 resize-y cursor-text select-text"
                   />
                 )}
 
                 {concept.image_status === 'done' && !showAdvancedPrompt ? (
                   /* ── EDIT IMAGE MODE (default when image exists) ── */
                   <>
-                    <p className="text-[10px] text-muted-foreground/70">
+                    <p className="text-xs text-muted-foreground">
                       Describí el cambio. La imagen existente se manda a Gemini junto con tu corrección.
                     </p>
                     <input
@@ -546,7 +546,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
                       placeholder="Ej: agrega badge '4x1', cambia fondo a blanco, quita la persona..."
                       value={correctionText}
                       onChange={(e) => setCorrectionText(e.target.value)}
-                      className="w-full text-[10px] text-muted-foreground bg-background border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/40"
+                      className="w-full text-xs text-foreground bg-background border border-border rounded px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
                     />
 
                     {/* Optional reference image */}
@@ -554,18 +554,18 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
                       <button
                         type="button"
                         onClick={() => correctionFileRef.current?.click()}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        <ImagePlus size={11} />
+                        <ImagePlus size={12} />
                         {correctionImage ? correctionImage.name : 'Imagen de referencia (opcional)'}
                       </button>
                       {correctionImage && (
                         <button
                           type="button"
                           onClick={() => { setCorrectionImage(null); if (correctionFileRef.current) correctionFileRef.current.value = '' }}
-                          className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                          className="text-muted-foreground/60 hover:text-foreground transition-colors"
                         >
-                          <X size={11} />
+                          <X size={12} />
                         </button>
                       )}
                       <input ref={correctionFileRef} type="file" accept="image/*" className="hidden" onChange={handleCorrectionImagePick} />
@@ -575,16 +575,16 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
                       type="button"
                       onClick={() => handleRegenerateWithChanges(true)}
                       disabled={isRegenerating}
-                      className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] font-medium transition-colors disabled:opacity-50"
+                      className="flex items-center justify-center gap-1.5 w-full py-2 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-medium transition-colors disabled:opacity-50"
                     >
-                      {isRegenerating ? <div className="w-3 h-3 rounded-full border border-primary border-t-transparent animate-spin" /> : <Wand2 size={11} />}
+                      {isRegenerating ? <div className="w-3.5 h-3.5 rounded-full border border-primary border-t-transparent animate-spin" /> : <Wand2 size={12} />}
                       {isRegenerating ? 'Aplicando...' : 'Aplicar edición'}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setShowAdvancedPrompt(true)}
-                      className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors text-center"
+                      className="text-xs text-muted-foreground/70 hover:text-foreground transition-colors text-center"
                     >
                       ⚙ Regenerar desde cero (editar prompt)
                     </button>
@@ -596,7 +596,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
                       <button
                         type="button"
                         onClick={() => setShowAdvancedPrompt(false)}
-                        className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors text-left"
+                        className="text-xs text-muted-foreground/70 hover:text-foreground transition-colors text-left"
                       >
                         ← Volver a editar imagen
                       </button>
@@ -605,31 +605,31 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
                       value={editedPrompt}
                       onChange={(e) => setEditedPrompt(e.target.value)}
                       rows={5}
-                      className="w-full text-[10px] text-muted-foreground font-mono leading-relaxed bg-background border border-border rounded p-2 resize-y focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      className="w-full text-xs text-foreground font-mono leading-relaxed bg-background border border-border rounded p-2 resize-y focus:outline-none focus:ring-1 focus:ring-primary/50"
                     />
                     <input
                       type="text"
                       placeholder="Corrección adicional (opcional)"
                       value={correctionText}
                       onChange={(e) => setCorrectionText(e.target.value)}
-                      className="w-full text-[10px] text-muted-foreground bg-background border border-border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/40"
+                      className="w-full text-xs text-foreground bg-background border border-border rounded px-2.5 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground/60"
                     />
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => correctionFileRef.current?.click()}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        <ImagePlus size={11} />
+                        <ImagePlus size={12} />
                         {correctionImage ? correctionImage.name : 'Imagen de referencia'}
                       </button>
                       {correctionImage && (
                         <button
                           type="button"
                           onClick={() => { setCorrectionImage(null); if (correctionFileRef.current) correctionFileRef.current.value = '' }}
-                          className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                          className="text-muted-foreground/60 hover:text-foreground transition-colors"
                         >
-                          <X size={11} />
+                          <X size={12} />
                         </button>
                       )}
                       <input ref={correctionFileRef} type="file" accept="image/*" className="hidden" onChange={handleCorrectionImagePick} />
@@ -638,9 +638,9 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
                       type="button"
                       onClick={() => handleRegenerateWithChanges(false)}
                       disabled={isRegenerating}
-                      className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[11px] font-medium transition-colors disabled:opacity-50"
+                      className="flex items-center justify-center gap-1.5 w-full py-2 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-medium transition-colors disabled:opacity-50"
                     >
-                      {isRegenerating ? <div className="w-3 h-3 rounded-full border border-primary border-t-transparent animate-spin" /> : <Wand2 size={11} />}
+                      {isRegenerating ? <div className="w-3.5 h-3.5 rounded-full border border-primary border-t-transparent animate-spin" /> : <Wand2 size={12} />}
                       {isRegenerating ? 'Regenerando...' : 'Regenerar desde cero'}
                     </button>
                   </>
