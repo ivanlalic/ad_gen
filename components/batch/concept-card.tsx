@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { AD_FORMATS, type AdFormat } from '@/lib/ad-formats'
 import { buildAdFilename } from '@/lib/naming'
 
@@ -86,6 +87,8 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
   const [modalView, setModalView] = useState<AdFormat>(primaryFormat)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
   // Map format tab → image url
   function getVariantUrl(fmt: AdFormat): string | null {
@@ -118,6 +121,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
         setCopiedBody(true)
         setTimeout(() => setCopiedBody(false), 1500)
       }
+      gooeyToast.success(which === 'headline' ? 'Titular copiado' : 'Copy copiado', { duration: 1200 })
     })
   }
 
@@ -245,9 +249,11 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
     try {
       await fetch(`/api/concepts/${concept.id}`, { method: 'DELETE' })
       setDeleted(true)
+      setConfirmDelete(false)
       setTimeout(() => router.refresh(), 300)
     } catch {
       setIsDeleting(false)
+      gooeyToast.error('No se pudo eliminar el concepto')
     }
   }
 
@@ -291,11 +297,18 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
     if (concept.image_status === 'done' && concept.image_url) {
       return (
         <>
+          {!imageLoaded && (
+            <div className="absolute inset-0 bg-muted animate-pulse" />
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={concept.image_url}
             alt={concept.headline ?? 'Concept image'}
-            className="absolute inset-0 w-full h-full object-cover"
+            onLoad={() => setImageLoaded(true)}
+            className={[
+              'absolute inset-0 w-full h-full object-cover transition-opacity duration-300',
+              imageLoaded ? 'opacity-100' : 'opacity-0',
+            ].join(' ')}
           />
           {isRegenerating && (
             <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
@@ -316,9 +329,18 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
     }
     if (concept.image_status === 'error') {
       return (
-        <div className="absolute inset-0 bg-red-950/30 border border-red-800/20 flex flex-col items-center justify-center gap-1.5">
-          <span className="text-red-400 text-2xl">⚠</span>
+        <div className="absolute inset-0 bg-red-950/30 border border-red-800/20 flex flex-col items-center justify-center gap-2">
+          <span className="text-red-400 text-2xl" aria-hidden>⚠</span>
           <span className="text-[11px] text-red-400">Error al generar</span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleRetry() }}
+            disabled={isRetrying}
+            className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-[11px] font-medium transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={11} className={isRetrying ? 'animate-spin' : ''} />
+            {isRetrying ? 'Reintentando...' : 'Reintentar'}
+          </button>
         </div>
       )
     }
@@ -431,7 +453,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
             </button>
           )}
           <button
-            onClick={handleDelete}
+            onClick={() => setConfirmDelete(true)}
             disabled={isDeleting}
             title="Eliminar concepto"
             className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30 transition-colors backdrop-blur-sm disabled:opacity-50"
@@ -717,6 +739,17 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="¿Eliminar este concepto?"
+        description="Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        variant="destructive"
+        loading={isDeleting}
+        onConfirm={handleDelete}
+      />
     </motion.div>
   )
 }

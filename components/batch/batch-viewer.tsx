@@ -10,6 +10,7 @@ import { gooeyToast } from '@/components/ui/goey-toaster'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { Database } from '@/types/supabase'
 import { buildAdFilename } from '@/lib/naming'
 import type { AdFormat } from '@/lib/ad-formats'
@@ -98,6 +99,9 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const [labelValue, setLabelValue] = useState(batch.label ?? '')
   const [labelSaving, setLabelSaving] = useState(false)
   const labelInputRef = useRef<HTMLInputElement>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [connectionLost, setConnectionLost] = useState(false)
+  const slowWarnedRef = useRef(false)
 
   const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
   const totalImages = concepts.length || batch.total_concepts
@@ -149,6 +153,19 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     poll()
   }, [batch.status, router])
 
+  // Connection-loss banner: listen to browser online/offline events
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const updateOnline = () => setConnectionLost(!window.navigator.onLine)
+    updateOnline()
+    window.addEventListener('online', updateOnline)
+    window.addEventListener('offline', updateOnline)
+    return () => {
+      window.removeEventListener('online', updateOnline)
+      window.removeEventListener('offline', updateOnline)
+    }
+  }, [])
+
   // Image generation loop
   useEffect(() => {
     if (batch.status !== 'generating_images') return
@@ -179,6 +196,12 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
       }
       retries++
 
+      // Soft warning when polling is well past the comfort zone (75% of cap)
+      if (retries > Math.floor(MAX_RETRIES * 0.75) && !slowWarnedRef.current) {
+        slowWarnedRef.current = true
+        gooeyToast('La generación está tardando más de lo normal', { duration: 6000 })
+      }
+
       try {
         // Refresh BEFORE the call so the previous concept shows as done
         router.refresh()
@@ -194,6 +217,8 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           runLoop()
           return
         }
+        // Successful round-trip: clear connection banner if it was up
+        setConnectionLost(false)
 
         const data = await res.json() as {
           done?: boolean
@@ -224,6 +249,8 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         await new Promise((r) => setTimeout(r, 300))
         runLoop()
       } catch {
+        // Network failure → show banner and back off; loop will keep trying
+        setConnectionLost(true)
         await new Promise((r) => setTimeout(r, 1500))
         runLoop()
       }
@@ -292,7 +319,6 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   }
 
   async function handleDelete() {
-    if (!confirm('¿Borrar este batch y todos sus conceptos? Esta acción no se puede deshacer.')) return
     setIsDeleting(true)
     try {
       const res = await fetch('/api/batches/delete', {
@@ -302,6 +328,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setConfirmDelete(false)
       router.push(product ? `/stores/${product.store_id}` : '/stores')
     } catch (err) {
       gooeyToast.error(`Error al borrar: ${err instanceof Error ? err.message : 'Error desconocido'}`)
@@ -500,7 +527,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           </Button>
         )}
         <Button
-          onClick={handleDelete}
+          onClick={() => setConfirmDelete(true)}
           disabled={isDeleting}
           variant="outline"
           size="sm"
@@ -510,6 +537,14 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           {isDeleting ? 'Borrando...' : 'Borrar batch'}
         </Button>
       </PageHeader>
+
+      {/* Connection-loss banner */}
+      {connectionLost && (
+        <div className="mb-4 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border border-yellow-400/30 bg-yellow-400/10 text-yellow-300">
+          <Loader2 size={13} className="animate-spin shrink-0" />
+          <span className="text-xs">Reintentando conexión…</span>
+        </div>
+      )}
 
       {/* Progress bar */}
       {isGeneratingImages && (
@@ -560,7 +595,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         </div>
       ) : concepts.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: Math.min(batch.total_concepts || 6, 12) }).map((_, i) => (
             <div key={i} className="flex flex-col rounded-xl border border-border bg-card overflow-hidden">
               <div className="animate-pulse bg-muted/40" style={{ paddingBottom: '100%' }} />
               <div className="p-4 space-y-3">
@@ -597,6 +632,17 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="¿Borrar este batch?"
+        description="Se eliminarán todos los conceptos e imágenes generados. Esta acción no se puede deshacer."
+        confirmLabel="Borrar batch"
+        variant="destructive"
+        loading={isDeleting}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

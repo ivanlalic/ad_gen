@@ -23,6 +23,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
 
   const [step, setStep] = useState(existingStoreId ? 1 : 0)
   const [saving, setSaving] = useState(false)
+  const [stepErrors, setStepErrors] = useState<Record<string, string>>({})
 
   const [storeData, setStoreData] = useState<StoreData>({ name: '', country: 'ES' })
   const [productData, setProductData] = useState<ProductBasicData>({ name: '', niche: '', description: '', keyFeatures: '' })
@@ -99,16 +100,29 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
     gooeyToast.success('Campos completados con IA — revisá y ajustá')
   }
 
-  function canAdvance(): boolean {
-    switch (step) {
-      case 0: return storeData.name.trim().length > 0 && storeData.country.length > 0
-      case 1: return productData.name.trim().length > 0 && productData.niche.length > 0
-      case 2: return true
-      case 3: return true // colors always valid
-      case 4: return true
-      case 5: return true
-      default: return false
+  function validateStep(s: number): Record<string, string> {
+    const errors: Record<string, string> = {}
+    switch (s) {
+      case 0:
+        if (!storeData.name.trim()) errors.storeName = 'El nombre de la tienda es obligatorio'
+        if (!storeData.country) errors.storeCountry = 'Elegí un país de destino'
+        break
+      case 1:
+        if (!productData.name.trim()) errors.productName = 'El nombre del producto es obligatorio'
+        if (!productData.niche) errors.productNiche = 'Elegí un nicho'
+        break
     }
+    return errors
+  }
+
+  function tryAdvance() {
+    const errors = validateStep(step)
+    if (Object.keys(errors).length > 0) {
+      setStepErrors(errors)
+      return
+    }
+    setStepErrors({})
+    setStep((s) => s + 1)
   }
 
   async function handleFinish() {
@@ -234,8 +248,8 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
   }
 
   const stepProps = [
-    <StepStore key="store" data={storeData} onChange={setStoreData} />,
-    <StepProduct key="product" data={productData} onChange={handleNicheChange} onAnalyzeUrl={handleAnalyzeUrl} />,
+    <StepStore key="store" data={storeData} onChange={(d) => { setStoreData(d); if (stepErrors.storeName || stepErrors.storeCountry) setStepErrors({}) }} errors={stepErrors} />,
+    <StepProduct key="product" data={productData} onChange={(d) => { handleNicheChange(d); if (stepErrors.productName || stepErrors.productNiche) setStepErrors({}) }} onAnalyzeUrl={handleAnalyzeUrl} errors={stepErrors} />,
     <StepAudience key="audience" data={audienceData} onChange={setAudienceData} />,
     <StepColors key="colors" niche={productData.niche} data={colorData} onChange={setColorData} />,
     <StepTone key="tone" data={toneData} onChange={setToneData} />,
@@ -287,9 +301,8 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
           ) : (
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!canAdvance()}
-              className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={tryAdvance}
+              className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Siguiente →
             </button>

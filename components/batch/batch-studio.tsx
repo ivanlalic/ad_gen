@@ -10,6 +10,7 @@ import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
 import { FormatSelector } from '@/components/format-selector'
 import { DEFAULT_FORMAT, type AdFormat } from '@/lib/ad-formats'
+import { Toggle } from '@/components/ui/toggle'
 
 const CONCEPT_MODELS = [
   { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini Flash Lite', desc: 'Más rápido, más barato', badge: 'Recomendado' },
@@ -282,7 +283,7 @@ async function handleGenerateAngles() {
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
             1. Cantidad de conceptos
           </h2>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {QUANTITY_OPTIONS.map(opt => (
               <button
                 key={opt.value}
@@ -703,30 +704,23 @@ async function handleGenerateAngles() {
             </div>
 
             {/* Generate images toggle */}
-            <label className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border cursor-pointer">
-              <div
-                onClick={() => setGenerateImages(!generateImages)}
-                className={[
-                  'w-10 h-6 rounded-full transition-colors duration-150 relative shrink-0',
-                  generateImages ? 'bg-primary' : 'bg-muted-foreground/30',
-                ].join(' ')}
-              >
-                <div
-                  className={[
-                    'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-150',
-                    generateImages ? 'translate-x-4' : 'translate-x-0.5',
-                  ].join(' ')}
-                />
-              </div>
-              <div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary border border-border">
+              <Toggle
+                checked={generateImages}
+                onCheckedChange={setGenerateImages}
+                aria-label="Generar imágenes al lanzar"
+                id="generate-images-toggle"
+                className="mt-0.5"
+              />
+              <label htmlFor="generate-images-toggle" className="cursor-pointer flex-1">
                 <span className="text-sm font-medium text-foreground">Generar imágenes</span>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {generateImages
                     ? 'ON — genera copies + imágenes al lanzar'
                     : 'OFF — genera solo copies de texto. Podés generar imágenes concepto por concepto desde el batch.'}
                 </p>
-              </div>
-            </label>
+              </label>
+            </div>
           </div>
         </section>
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NicheSelector } from './niche-selector'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { AiModelPicker, type AiModelValue } from '@/components/ui/ai-model-picker'
+import { FormField } from '@/components/ui/form-field'
 
 export interface ProductBasicData {
   name: string
@@ -14,9 +15,10 @@ interface StepProductProps {
   data: ProductBasicData
   onChange: (data: ProductBasicData) => void
   onAnalyzeUrl: (url: string, model: AiModelValue) => Promise<void>
+  errors?: Record<string, string>
 }
 
-export function StepProduct({ data, onChange, onAnalyzeUrl }: StepProductProps) {
+export function StepProduct({ data, onChange, onAnalyzeUrl, errors = {} }: StepProductProps) {
   const nicheConfig = getNicheConfig(data.niche)
   const [url, setUrl] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
@@ -87,26 +89,27 @@ export function StepProduct({ data, onChange, onAnalyzeUrl }: StepProductProps) 
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Nombre del producto
-          </label>
+        <FormField
+          label="Nombre del producto"
+          htmlFor="product-name"
+          error={errors.productName}
+        >
           <input
+            id="product-name"
             type="text"
             placeholder="Ej: ExCalvo Champú Crecimiento"
             value={data.name}
             onChange={(e) => onChange({ ...data, name: e.target.value })}
-            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-destructive/30"
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">Nicho</label>
+        <FormField label="Nicho" error={errors.productNiche}>
           <NicheSelector
             value={data.niche}
             onChange={(key) => onChange({ ...data, niche: key })}
           />
-        </div>
+        </FormField>
 
         {nicheConfig && (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary border border-border text-xs text-muted-foreground">
