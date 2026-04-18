@@ -91,6 +91,8 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [generationStep, setGenerationStep] = useState<string | null>(null)
+  const [isGenerating916All, setIsGenerating916All] = useState(false)
+  const [gen916Progress, setGen916Progress] = useState(0)
 
   const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
   const totalImages = concepts.length || batch.total_concepts
@@ -226,6 +228,31 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     return () => { if (elapsedInterval.current) clearInterval(elapsedInterval.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.status, batch.generate_images, batch.id])
+
+  // Concepts that have the primary image done but no 9:16 variant yet
+  const needs916 = concepts.filter((c) => c.image_status === 'done' && c.image_url && !c.image_url_9_16)
+
+  async function handleGenerateAll916() {
+    if (needs916.length === 0 || isGenerating916All) return
+    setIsGenerating916All(true)
+    setGen916Progress(0)
+
+    for (const c of needs916) {
+      try {
+        await fetch('/api/generate/images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batchId: batch.id, conceptId: c.id, aspectRatio: '9:16' }),
+        })
+      } catch {
+        // skip failed, continue
+      }
+      setGen916Progress((p) => p + 1)
+    }
+
+    setIsGenerating916All(false)
+    router.refresh()
+  }
 
   async function handleRegenerateImages() {
     setIsRegenerating(true)
@@ -374,6 +401,26 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           >
             <RefreshCw size={14} className={isRegenerating ? 'animate-spin' : ''} />
             {isRegenerating ? 'Reiniciando...' : `Regenerar imágenes (${errorImages})`}
+          </Button>
+        )}
+        {batch.status === 'done' && needs916.length > 0 && (
+          <Button
+            onClick={handleGenerateAll916}
+            disabled={isGenerating916All}
+            variant="outline"
+            size="sm"
+          >
+            {isGenerating916All ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                {gen916Progress}/{needs916.length} 9:16...
+              </>
+            ) : (
+              <>
+                <RefreshCw size={14} />
+                Generar todas en 9:16 ({needs916.length})
+              </>
+            )}
           </Button>
         )}
         {hasImages && (
