@@ -11,10 +11,6 @@ import { getCountryConfig } from '@/lib/constants/countries'
 import { FormatSelector } from '@/components/format-selector'
 import { DEFAULT_FORMAT, type AdFormat } from '@/lib/ad-formats'
 
-// Cost estimates per concept
-const COST_PER_CONCEPT_CLAUDE = 0.005 // ~$0.05-0.15 per 20 concepts
-const COST_PER_IMAGE_NB2 = 0.025 // ~$0.40-0.80 per 20 images
-
 const CONCEPT_MODELS = [
   { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini Flash Lite', desc: 'Más rápido, más barato', badge: 'Recomendado' },
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku', desc: 'Rápido, copy sólido' },
@@ -56,10 +52,10 @@ interface BatchStudioProps {
 }
 
 const QUANTITY_OPTIONS = [
-  { value: 10, label: '10', time: '~1 min', cost: '$0.30' },
-  { value: 20, label: '20', time: '~2 min', cost: '$0.60', recommended: true },
-  { value: 30, label: '30', time: '~3 min', cost: '$0.90' },
-  { value: 50, label: '50', time: '~5 min', cost: '$1.50' },
+  { value: 10, label: '10' },
+  { value: 20, label: '20', recommended: true },
+  { value: 30, label: '30' },
+  { value: 50, label: '50' },
 ]
 
 
@@ -112,10 +108,6 @@ export function BatchStudio({ product }: BatchStudioProps) {
 
   // Computed
   const totalImages = totalConcepts * aspectRatios.length
-  const estimatedCost = (
-    totalConcepts * COST_PER_CONCEPT_CLAUDE +
-    Math.ceil(totalImages) * COST_PER_IMAGE_NB2
-  ).toFixed(2)
 
   const winningAdsCount = product.product_inputs.filter(i => i.type === 'winning_ad').length
   const productPhotosCount = product.product_inputs.filter(i => i.type === 'product_photo').length
@@ -308,8 +300,6 @@ async function handleGenerateAngles() {
                   </span>
                 )}
                 <span className="text-2xl font-semibold text-foreground">{opt.label}</span>
-                <span className="text-[11px] text-muted-foreground">{opt.time}</span>
-                <span className="text-[11px] text-muted-foreground">{opt.cost}</span>
               </button>
             ))}
           </div>
@@ -763,21 +753,6 @@ async function handleGenerateAngles() {
         </section>}
 
 
-        {/* Cost estimate */}
-        <div className="p-4 bg-card border border-border rounded-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-foreground">Estimación</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {totalConcepts} conceptos · {primaryFormat} · ~{Math.ceil(totalImages)} imágenes
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-semibold text-foreground">${estimatedCost}</div>
-              <div className="text-[11px] text-muted-foreground">Costo estimado</div>
-            </div>
-          </div>
-        </div>
 
         {/* Launch button — in angles mode only show after angles generated */}
         {(generationMode === 'templates' || generatedAngles.length > 0) && (
