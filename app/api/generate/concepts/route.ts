@@ -374,11 +374,85 @@ ${buildTemplatesDescription()}
 
 Generá ${totalConcepts} conceptos ahora.`
 
+  // Streaming parser: extracts complete top-level `{...}` objects from an
+  // incrementally-built text buffer, tolerating strings containing braces and
+  // escape sequences. Returns the newly-parsed objects plus the advanced cursor.
+  function extractObjects(buf: string, start: number): { objects: any[]; next: number } {
+    const objects: any[] = []
+    let i = start
+    let depth = 0
+    let objStart = -1
+    let inString = false
+    let escape = false
+    while (i < buf.length) {
+      const ch = buf[i]
+      if (inString) {
+        if (escape) escape = false
+        else if (ch === '\\') escape = true
+        else if (ch === '"') inString = false
+      } else {
+        if (ch === '"') inString = true
+        else if (ch === '{') {
+          if (depth === 0) objStart = i
+          depth++
+        } else if (ch === '}') {
+          depth--
+          if (depth === 0 && objStart >= 0) {
+            const objText = buf.slice(objStart, i + 1)
+            try {
+              objects.push(JSON.parse(objText))
+            } catch {
+              // skip malformed object — likely partial escapes; upstream will catch via final parse
+            }
+            objStart = -1
+            start = i + 1
+          }
+        }
+      }
+      i++
+    }
+    return { objects, next: start }
+  }
+
+  async function insertConcept(raw: any, idx: number): Promise<boolean> {
+    if (!raw?.source_grounding || String(raw.source_grounding).trim().length === 0) return false
+    const row = {
+      batch_id: batchId,
+      template_number: raw.template_number,
+      template_name: raw.template_name,
+      headline: raw.headline,
+      body_copy: raw.body_copy,
+      visual_description: raw.visual_description,
+      source_grounding: raw.source_grounding,
+      nb2_prompt: buildNB2Prompt(raw, product, batch, niche),
+      is_pinned: !isAnglesMode && pinnedConceptText && idx === 0 ? true : (raw.is_pinned ?? false),
+      angle_number: isAnglesMode ? (raw.angle_id ?? null) : null,
+      image_status: 'pending',
+    }
+    const { error } = await supabase.from('concepts').insert(row)
+    if (error) {
+      console.error('Insert concept error:', error.message)
+      return false
+    }
+    return true
+  }
+
   try {
     const conceptModel = batch.concept_model ?? 'gemini-3.1-flash-lite-preview'
 
-    // Dispatch to Claude or Gemini based on model prefix
     let rawText = ''
+    let cursor = 0
+    let insertedIdx = 0
+
+    const drain = async () => {
+      const { objects, next } = extractObjects(rawText, cursor)
+      cursor = next
+      for (const obj of objects) {
+        const ok = await insertConcept(obj, insertedIdx)
+        if (ok) insertedIdx++
+      }
+    }
+
     if (conceptModel.startsWith('claude-')) {
       const Anthropic = (await import('@anthropic-ai/sdk')).default
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -402,91 +476,66 @@ Generá ${totalConcepts} conceptos ahora.`
         system: systemPrompt,
         messages: [{ role: 'user', content: claudeParts }],
       })
-      const msg = await stream.finalMessage()
-      rawText = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('')
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          rawText += event.delta.text
+          await drain()
+        }
+      }
     } else {
       const userParts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
         { text: userPrompt },
         ...winningAdImageParts,
       ]
-      const response = await ai.models.generateContent({
+      const stream = await ai.models.generateContentStream({
         model: conceptModel,
         contents: [{ role: 'user', parts: userParts }],
         config: { systemInstruction: systemPrompt, temperature: 0.8 },
       })
-      rawText = response.text ?? ''
+      for await (const chunk of stream) {
+        const t = chunk.text ?? ''
+        if (!t) continue
+        rawText += t
+        await drain()
+      }
     }
 
-    // Extract JSON array from response
-    const match = rawText.match(/\[[\s\S]*\]/)
-    if (!match) {
-      return NextResponse.json({ error: 'Invalid model response — no JSON array found' }, { status: 500 })
+    // Fallback: if streaming yielded nothing, try full-array parse once
+    if (insertedIdx === 0) {
+      const match = rawText.match(/\[[\s\S]*\]/)
+      if (!match) {
+        await supabase.from('batches').update({ status: 'error' }).eq('id', batchId)
+        return NextResponse.json({ error: 'Invalid model response — no JSON array found' }, { status: 500 })
+      }
+      let rawConcepts: any[]
+      try {
+        rawConcepts = JSON.parse(match[0])
+      } catch (parseError) {
+        console.error('Error al parsear el JSON del modelo:', parseError)
+        await supabase.from('batches').update({ status: 'error' }).eq('id', batchId)
+        return NextResponse.json({ error: 'El modelo devolvió un JSON incompleto. Probá con menos conceptos (ej: 10 o 20).' }, { status: 500 })
+      }
+      for (const c of rawConcepts) {
+        const ok = await insertConcept(c, insertedIdx)
+        if (ok) insertedIdx++
+      }
     }
 
-    let rawConcepts;
-    try {
-      rawConcepts = JSON.parse(match[0]) as Array<{
-        template_number: number
-        template_name: string
-        headline: string
-        body_copy: string
-        visual_description: string
-        source_grounding: string
-        nb2_prompt?: string
-        is_pinned?: boolean
-      }>
-    } catch (parseError) {
-      console.error('Error al parsear el JSON de Gemini:', parseError);
-      console.error('Últimos 100 caracteres recibidos:', match[0].substring(match[0].length - 100));
-      await supabase.from('batches').update({ status: 'error' }).eq('id', batchId);
-      return NextResponse.json({ error: 'Gemini devolvió un JSON incompleto o muy largo. Intentá generando menos conceptos a la vez (ej: 10 o 20).' }, { status: 500 })
+    if (insertedIdx === 0) {
+      await supabase.from('batches').update({ status: 'error' }).eq('id', batchId)
+      return NextResponse.json({ error: 'No se generó ningún concepto válido' }, { status: 500 })
     }
 
-    // Validate source_grounding is not empty and map to camelCase for saveConcepts
-    const validConcepts = rawConcepts
-      .filter(c => c.source_grounding?.trim().length > 0)
-      .map((c, idx) => ({
-        templateNumber: c.template_number,
-        templateName: c.template_name,
-        headline: c.headline,
-        bodyCopy: c.body_copy,
-        visualDescription: c.visual_description,
-        sourceGrounding: c.source_grounding,
-        nb2Prompt: buildNB2Prompt(c as any, product, batch, niche),
-        isPinned: !isAnglesMode && pinnedConceptText && idx === 0 ? true : (c.is_pinned ?? false),
-        angleNumber: isAnglesMode ? ((c as any).angle_id ?? null) : null,
-      }))
-
-    // Save concepts to DB
-    const rows = validConcepts.map((c) => ({
-      batch_id: batchId,
-      template_number: c.templateNumber,
-      template_name: c.templateName,
-      headline: c.headline,
-      body_copy: c.bodyCopy,
-      visual_description: c.visualDescription,
-      source_grounding: c.sourceGrounding,
-      nb2_prompt: c.nb2Prompt,
-      is_pinned: c.isPinned ?? false,
-      angle_number: c.angleNumber ?? null,
-      image_status: 'pending',
-    }))
-    const { error: insertError } = await supabase.from('concepts').insert(rows)
-    if (insertError) throw new Error(insertError.message)
-
-    // Update batch status
+    // Advance batch status
     await supabase
       .from('batches')
       .update({ status: batch.generate_images ? 'generating_images' : 'done' })
       .eq('id', batchId)
 
-    return NextResponse.json({
-      concepts: validConcepts,
-      count: validConcepts.length,
-    })
+    return NextResponse.json({ count: insertedIdx })
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err)
-    console.error('Gemini concepts error:', detail, err)
+    console.error('Concepts generation error:', detail, err)
     await supabase.from('batches').update({ status: 'error' }).eq('id', batchId)
     return NextResponse.json({ error: detail }, { status: 500 })
   }

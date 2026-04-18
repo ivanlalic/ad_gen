@@ -153,7 +153,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     const poll = () => {
       if (retries >= MAX_RETRIES) return
       retries++
-      setTimeout(() => { router.refresh(); poll() }, 4000)
+      setTimeout(() => { router.refresh(); poll() }, 1500)
     }
     poll()
   }, [batch.status, router])
