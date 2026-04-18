@@ -73,6 +73,20 @@ export async function createBatch(data: CreateBatchData) {
   return batch.id
 }
 
+export async function updateBatchLabel(batchId: string, label: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { error } = await supabase
+    .from('batches')
+    .update({ label: label.trim() || null })
+    .eq('id', batchId)
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/batch/${batchId}`)
+}
+
 export async function updateBatchStatus(
   batchId: string,
   status: string

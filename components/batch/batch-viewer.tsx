@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react'
+import { Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, Trash2, Pencil, Check, X } from 'lucide-react'
 import { ConceptCard } from '@/components/batch/concept-card'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { PageHeader } from '@/components/ui/page-header'
@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import type { Database } from '@/types/supabase'
 import { buildAdFilename } from '@/lib/naming'
 import type { AdFormat } from '@/lib/ad-formats'
+import { updateBatchLabel } from '@/lib/actions/batches'
 
 type ConceptRow = Database['public']['Tables']['concepts']['Row']
 
@@ -93,6 +94,10 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const [generationStep, setGenerationStep] = useState<string | null>(null)
   const [isGenerating916All, setIsGenerating916All] = useState(false)
   const [gen916Progress, setGen916Progress] = useState(0)
+  const [labelEditing, setLabelEditing] = useState(false)
+  const [labelValue, setLabelValue] = useState(batch.label ?? '')
+  const [labelSaving, setLabelSaving] = useState(false)
+  const labelInputRef = useRef<HTMLInputElement>(null)
 
   const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
   const totalImages = concepts.length || batch.total_concepts
@@ -228,6 +233,18 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     return () => { if (elapsedInterval.current) clearInterval(elapsedInterval.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.status, batch.generate_images, batch.id])
+
+  async function handleSaveLabel() {
+    setLabelSaving(true)
+    try {
+      await updateBatchLabel(batch.id, labelValue)
+      setLabelEditing(false)
+    } catch {
+      gooeyToast.error('Error al guardar nombre')
+    } finally {
+      setLabelSaving(false)
+    }
+  }
 
   // Concepts that have the primary image done but no 9:16 variant yet
   const needs916 = concepts.filter((c) => c.image_status === 'done' && c.image_url && !c.image_url_9_16)
@@ -385,6 +402,54 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           Batch {batch.id.slice(0, 8)}
         </span>
       </nav>
+
+      {/* Batch label — editable inline */}
+      <div className="flex items-center gap-2 mb-4">
+        {labelEditing ? (
+          <>
+            <input
+              ref={labelInputRef}
+              autoFocus
+              value={labelValue}
+              onChange={(e) => setLabelValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveLabel()
+                if (e.key === 'Escape') { setLabelEditing(false); setLabelValue(batch.label ?? '') }
+              }}
+              placeholder="Nombre del batch..."
+              className="px-2 py-1 bg-input border border-primary/40 rounded-md text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 w-52"
+            />
+            <button
+              type="button"
+              onClick={handleSaveLabel}
+              disabled={labelSaving}
+              className="p-1 rounded text-green-400 hover:text-green-300 transition-colors disabled:opacity-50"
+            >
+              {labelSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLabelEditing(false); setLabelValue(batch.label ?? '') }}
+              className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X size={13} />
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setLabelEditing(true); setTimeout(() => labelInputRef.current?.focus(), 0) }}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+          >
+            <Pencil size={11} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+            {labelValue ? (
+              <span className="font-medium text-foreground">{labelValue}</span>
+            ) : (
+              <span className="italic opacity-40">Sin nombre — click para editar</span>
+            )}
+          </button>
+        )}
+      </div>
 
       {/* Header */}
       <PageHeader
