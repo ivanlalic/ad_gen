@@ -1,4 +1,5 @@
 import { COUNTRIES } from '@/lib/constants/countries'
+import { FormField } from '@/components/ui/form-field'
 
 export interface StoreData {
   name: string
@@ -8,9 +9,10 @@ export interface StoreData {
 interface StepStoreProps {
   data: StoreData
   onChange: (data: StoreData) => void
+  errors?: Record<string, string>
 }
 
-export function StepStore({ data, onChange }: StepStoreProps) {
+export function StepStore({ data, onChange, errors }: StepStoreProps) {
   return (
     <div className="space-y-6">
       <div>
@@ -21,18 +23,21 @@ export function StepStore({ data, onChange }: StepStoreProps) {
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Nombre de la tienda
-          </label>
+        <FormField
+          htmlFor="store-name"
+          label="Nombre de la tienda"
+          error={errors?.name}
+        >
           <input
+            id="store-name"
             type="text"
             placeholder="Ej: IBericaStore, Nutrex, Calvo Pro..."
             value={data.name}
             onChange={(e) => onChange({ ...data, name: e.target.value })}
-            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-invalid={errors?.name ? true : undefined}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-destructive/30"
           />
-        </div>
+        </FormField>
 
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">
@@ -41,6 +46,11 @@ export function StepStore({ data, onChange }: StepStoreProps) {
           <p className="text-xs text-muted-foreground">
             Determina el dialecto del copy generado.
           </p>
+          {errors?.country && (
+            <p role="alert" className="text-xs text-destructive">
+              {errors.country}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             {COUNTRIES.map((country) => (
               <button

@@ -1,5 +1,6 @@
 import { NicheSelector } from './niche-selector'
 import { getNicheConfig } from '@/lib/constants/niches'
+import { FormField } from '@/components/ui/form-field'
 
 export interface ProductBasicData {
   name: string
@@ -9,9 +10,10 @@ export interface ProductBasicData {
 interface StepProductProps {
   data: ProductBasicData
   onChange: (data: ProductBasicData) => void
+  errors?: Record<string, string>
 }
 
-export function StepProduct({ data, onChange }: StepProductProps) {
+export function StepProduct({ data, onChange, errors }: StepProductProps) {
   const nicheConfig = getNicheConfig(data.niche)
 
   return (
@@ -24,21 +26,29 @@ export function StepProduct({ data, onChange }: StepProductProps) {
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            Nombre del producto
-          </label>
+        <FormField
+          htmlFor="product-name"
+          label="Nombre del producto"
+          error={errors?.name}
+        >
           <input
+            id="product-name"
             type="text"
             placeholder="Ej: ExCalvo Champú Crecimiento"
             value={data.name}
             onChange={(e) => onChange({ ...data, name: e.target.value })}
-            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-invalid={errors?.name ? true : undefined}
+            className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-destructive/30"
           />
-        </div>
+        </FormField>
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">Nicho</label>
+          {errors?.niche && (
+            <p role="alert" className="text-xs text-destructive">
+              {errors.niche}
+            </p>
+          )}
           <NicheSelector
             value={data.niche}
             onChange={(key) => onChange({ ...data, niche: key })}

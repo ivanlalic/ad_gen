@@ -3,11 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Loader2 } from 'lucide-react'
 import { createBatch } from '@/lib/actions/batches'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { TEMPLATES, distributeTemplates } from '@/lib/constants/templates'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
+import { Toggle } from '@/components/ui/toggle'
+import { FormField } from '@/components/ui/form-field'
+import { Input } from '@/components/ui/input'
+
+const NEGATIVE_PROMPT_MAX = 500
 
 // Cost estimates per concept
 const COST_PER_CONCEPT_CLAUDE = 0.005 // ~$0.05-0.15 per 20 concepts
@@ -92,6 +98,19 @@ export function BatchStudio({ product }: BatchStudioProps) {
 
   const [launching, setLaunching] = useState(false)
 
+  // Validation
+  const seedError =
+    seed.trim().length > 0 && !/^-?\d+$/.test(seed.trim())
+      ? 'Debe ser un número entero'
+      : null
+  const negativePromptError =
+    negativePrompt.length > NEGATIVE_PROMPT_MAX
+      ? `Máximo ${NEGATIVE_PROMPT_MAX} caracteres`
+      : null
+  const formatsError =
+    aspectRatios.length === 0 ? 'Seleccioná al menos un formato' : null
+  const hasErrors = Boolean(seedError || negativePromptError || formatsError)
+
   // Computed
   const totalImages = totalConcepts * aspectRatios.length * (adaptFormats && aspectRatios.includes('1:1') && aspectRatios.includes('9:16') ? 1.5 : 1)
   const estimatedCost = (
@@ -112,8 +131,12 @@ export function BatchStudio({ product }: BatchStudioProps) {
   }
 
   async function handleLaunch() {
-    if (aspectRatios.length === 0) {
-      gooeyToast.error('Seleccioná al menos un formato')
+    if (formatsError) {
+      gooeyToast.error(formatsError)
+      return
+    }
+    if (negativePromptError || seedError) {
+      gooeyToast.error('Revisá los campos marcados')
       return
     }
 
@@ -225,7 +248,7 @@ export function BatchStudio({ product }: BatchStudioProps) {
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
             1. Cantidad de conceptos
           </h2>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {QUANTITY_OPTIONS.map(opt => (
               <button
                 key={opt.value}
@@ -274,28 +297,20 @@ export function BatchStudio({ product }: BatchStudioProps) {
           </div>
 
           {/* Adapt formats toggle */}
-          <label className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border cursor-pointer">
-            <div
-              onClick={() => setAdaptFormats(!adaptFormats)}
-              className={[
-                'w-10 h-6 rounded-full transition-colors duration-150 relative',
-                adaptFormats ? 'bg-primary' : 'bg-muted-foreground/30',
-              ].join(' ')}
-            >
-              <div
-                className={[
-                  'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-150',
-                  adaptFormats ? 'translate-x-4' : 'translate-x-0.5',
-                ].join(' ')}
-              />
-            </div>
-            <div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border">
+            <Toggle
+              checked={adaptFormats}
+              onCheckedChange={setAdaptFormats}
+              aria-label="Adaptar formatos"
+              id="toggle-adapt-formats"
+            />
+            <label htmlFor="toggle-adapt-formats" className="cursor-pointer select-none">
               <span className="text-sm font-medium text-foreground">Adaptar formatos</span>
               <span className="text-xs text-muted-foreground ml-2">
                 Readapta 1:1 → 9:16 via image-to-image
               </span>
-            </div>
-          </label>
+            </label>
+          </div>
         </section>
 
         {/* 3. Modelo NB2 */}
@@ -352,27 +367,58 @@ export function BatchStudio({ product }: BatchStudioProps) {
             5. Avanzado
           </h2>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Negative prompt</label>
+            <FormField
+              htmlFor="negative-prompt"
+              label={
+                <span className="flex items-center justify-between gap-2 w-full">
+                  <span>Negative prompt</span>
+                  <span
+                    className={[
+                      'text-[11px] font-normal',
+                      negativePrompt.length > NEGATIVE_PROMPT_MAX
+                        ? 'text-destructive'
+                        : 'text-muted-foreground',
+                    ].join(' ')}
+                  >
+                    {negativePrompt.length} / {NEGATIVE_PROMPT_MAX}
+                  </span>
+                </span>
+              }
+              error={
+                negativePrompt.length > NEGATIVE_PROMPT_MAX
+                  ? `Máximo ${NEGATIVE_PROMPT_MAX} caracteres`
+                  : null
+              }
+            >
               <textarea
+                id="negative-prompt"
                 value={negativePrompt}
                 onChange={e => setNegativePrompt(e.target.value)}
                 rows={2}
-                className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono text-xs"
+                aria-invalid={negativePrompt.length > NEGATIVE_PROMPT_MAX || undefined}
+                className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono text-xs aria-invalid:border-destructive aria-invalid:ring-destructive/30"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">
-                Seed <span className="text-muted-foreground font-normal">(vacío = random)</span>
-              </label>
-              <input
+            </FormField>
+            <FormField
+              htmlFor="seed-input"
+              label={
+                <span>
+                  Seed{' '}
+                  <span className="text-muted-foreground font-normal">(vacío = random)</span>
+                </span>
+              }
+              error={seedError}
+            >
+              <Input
+                id="seed-input"
                 type="number"
                 value={seed}
                 onChange={e => setSeed(e.target.value)}
                 placeholder="Random"
-                className="w-40 px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                inputMode="numeric"
+                className="w-40 font-mono"
               />
-            </div>
+            </FormField>
           </div>
         </section>
 
@@ -399,28 +445,20 @@ export function BatchStudio({ product }: BatchStudioProps) {
         </section>
 
         {/* Generate images toggle */}
-        <label className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border cursor-pointer">
-          <div
-            onClick={() => setGenerateImages(!generateImages)}
-            className={[
-              'w-10 h-6 rounded-full transition-colors duration-150 relative',
-              generateImages ? 'bg-primary' : 'bg-muted-foreground/30',
-            ].join(' ')}
-          >
-            <div
-              className={[
-                'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-150',
-                generateImages ? 'translate-x-4' : 'translate-x-0.5',
-              ].join(' ')}
-            />
-          </div>
-          <div>
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary border border-border">
+          <Toggle
+            checked={generateImages}
+            onCheckedChange={setGenerateImages}
+            aria-label="Generar imágenes"
+            id="toggle-generate-images"
+          />
+          <label htmlFor="toggle-generate-images" className="cursor-pointer select-none">
             <span className="text-sm font-medium text-foreground">Generar imágenes</span>
             <span className="text-xs text-muted-foreground ml-2">
               {generateImages ? 'Conceptos + imágenes NB2' : 'Solo conceptos de texto'}
             </span>
-          </div>
-        </label>
+          </label>
+        </div>
 
         {/* Cost estimate */}
         <div className="p-4 bg-card border border-border rounded-xl">
@@ -439,12 +477,19 @@ export function BatchStudio({ product }: BatchStudioProps) {
         </div>
 
         {/* Launch button */}
+        {formatsError && (
+          <p role="alert" className="text-xs text-destructive -mt-4">
+            {formatsError}
+          </p>
+        )}
         <button
           onClick={handleLaunch}
-          disabled={launching || aspectRatios.length === 0}
-          className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={launching || hasErrors}
+          aria-busy={launching || undefined}
+          className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         >
-          {launching ? 'Lanzando...' : `Lanzar batch — ${totalConcepts} conceptos`}
+          {launching && <Loader2 size={14} className="animate-spin" />}
+          {launching ? 'Lanzando…' : `Lanzar batch — ${totalConcepts} conceptos`}
         </button>
       </div>
     </div>

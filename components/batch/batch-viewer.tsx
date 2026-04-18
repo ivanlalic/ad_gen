@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { Download, Loader2, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Download, Loader2, CheckCircle2, AlertCircle, Clock, WifiOff } from 'lucide-react'
 import { ConceptCard } from '@/components/batch/concept-card'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { PageHeader } from '@/components/ui/page-header'
@@ -76,8 +76,10 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const router = useRouter()
   const imageLoopStarted = useRef(false)
   const conceptPollStarted = useRef(false)
+  const slowWarningShown = useRef(false)
   const [imageProgress, setImageProgress] = useState(0)
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
+  const [connectionLost, setConnectionLost] = useState(false)
 
   const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
   const totalImages = concepts.length || batch.total_concepts
@@ -127,6 +129,14 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
       }
       retries++
 
+      // Soft warning when generation is taking a while (75% of budget)
+      if (retries > 60 && !slowWarningShown.current) {
+        slowWarningShown.current = true
+        gooeyToast('La generación está tardando más de lo normal', {
+          duration: 4000,
+        })
+      }
+
       try {
         const res = await fetch('/api/generate/images', {
           method: 'POST',
@@ -135,11 +145,14 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         })
 
         if (!res.ok) {
+          setConnectionLost(true)
           await new Promise((r) => setTimeout(r, 1500))
           router.refresh()
           runLoop()
           return
         }
+
+        setConnectionLost(false)
 
         const data = await res.json() as {
           done?: boolean
@@ -170,6 +183,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         router.refresh()
         runLoop()
       } catch {
+        setConnectionLost(true)
         await new Promise((r) => setTimeout(r, 1500))
         router.refresh()
         runLoop()
@@ -250,6 +264,24 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         )}
       </PageHeader>
 
+      {/* Connection-loss banner */}
+      <AnimatePresence>
+        {connectionLost && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18 }}
+            role="status"
+            className="mb-4 flex items-center gap-2.5 px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-yellow-300 text-xs"
+          >
+            <WifiOff size={13} />
+            <span className="flex-1">Reintentando conexión…</span>
+            <Loader2 size={13} className="animate-spin" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Progress bar */}
       {isGeneratingImages && (
         <div className="mb-8">
@@ -274,7 +306,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         </div>
       ) : concepts.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: Math.min(Math.max(batch.total_concepts, 3), 12) }).map((_, i) => (
             <div key={i} className="flex flex-col rounded-xl border border-border bg-card overflow-hidden">
               <div className="animate-pulse bg-muted/40" style={{ paddingBottom: '100%' }} />
               <div className="p-4 space-y-3">

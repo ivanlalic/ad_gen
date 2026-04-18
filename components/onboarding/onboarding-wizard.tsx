@@ -23,6 +23,7 @@ export function OnboardingWizard() {
 
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [attemptedSteps, setAttemptedSteps] = useState<Set<number>>(new Set())
 
   const [storeData, setStoreData] = useState<StoreData>({ name: '', country: 'ES' })
   const [productData, setProductData] = useState<ProductBasicData>({ name: '', niche: '' })
@@ -57,16 +58,31 @@ export function OnboardingWizard() {
     }
   }
 
-  function canAdvance(): boolean {
-    switch (step) {
-      case 0: return storeData.name.trim().length > 0 && storeData.country.length > 0
-      case 1: return productData.name.trim().length > 0 && productData.niche.length > 0
-      case 2: return true
-      case 3: return storeData.name.length > 0 // colors always valid
-      case 4: return true
-      case 5: return true
-      default: return false
+  function validateStep(s: number): { valid: boolean; errors: Record<string, string> } {
+    const errors: Record<string, string> = {}
+    switch (s) {
+      case 0:
+        if (!storeData.name.trim()) errors.name = 'Ingresá un nombre'
+        if (!storeData.country) errors.country = 'Elegí un país'
+        break
+      case 1:
+        if (!productData.name.trim()) errors.name = 'Ingresá un nombre'
+        if (!productData.niche) errors.niche = 'Elegí un nicho'
+        break
     }
+    return { valid: Object.keys(errors).length === 0, errors }
+  }
+
+  const currentValidation = validateStep(step)
+  const showErrors = attemptedSteps.has(step)
+
+  function handleNext() {
+    const { valid } = validateStep(step)
+    if (!valid) {
+      setAttemptedSteps((prev) => new Set(prev).add(step))
+      return
+    }
+    setStep((s) => s + 1)
   }
 
   async function handleFinish() {
@@ -161,8 +177,18 @@ export function OnboardingWizard() {
   }
 
   const stepProps = [
-    <StepStore key="store" data={storeData} onChange={setStoreData} />,
-    <StepProduct key="product" data={productData} onChange={handleNicheChange} />,
+    <StepStore
+      key="store"
+      data={storeData}
+      onChange={setStoreData}
+      errors={showErrors ? currentValidation.errors : undefined}
+    />,
+    <StepProduct
+      key="product"
+      data={productData}
+      onChange={handleNicheChange}
+      errors={showErrors ? currentValidation.errors : undefined}
+    />,
     <StepAudience key="audience" data={audienceData} onChange={setAudienceData} />,
     <StepColors key="colors" niche={productData.niche} data={colorData} onChange={setColorData} />,
     <StepTone key="tone" data={toneData} onChange={setToneData} />,
@@ -214,9 +240,9 @@ export function OnboardingWizard() {
           ) : (
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!canAdvance()}
-              className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleNext}
+              aria-disabled={!currentValidation.valid || undefined}
+              className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity aria-disabled:opacity-60"
             >
               Siguiente →
             </button>

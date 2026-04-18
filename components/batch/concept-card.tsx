@@ -13,6 +13,8 @@ import {
   Check,
   Pin,
 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { gooeyToast } from '@/components/ui/goey-toaster'
 
 interface ConceptCardProps {
   concept: {
@@ -49,6 +51,8 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   const [isRetrying, setIsRetrying] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
   const paddingBottom = ASPECT_PADDING[aspectRatio] ?? '100%'
 
@@ -61,6 +65,7 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
         setCopiedBody(true)
         setTimeout(() => setCopiedBody(false), 1500)
       }
+      gooeyToast('Copiado al portapapeles', { duration: 1500 })
     })
   }
 
@@ -101,12 +106,25 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   function renderImageArea() {
     if (concept.image_status === 'done' && concept.image_url) {
       return (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={concept.image_url}
-          alt={concept.headline ?? 'Concept image'}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        <>
+          {!imageLoaded && (
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-muted/40 animate-pulse"
+            />
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={concept.image_url}
+            alt={concept.headline ?? 'Concept image'}
+            loading="lazy"
+            onLoad={() => setImageLoaded(true)}
+            className={[
+              'absolute inset-0 w-full h-full object-cover transition-opacity duration-300',
+              imageLoaded ? 'opacity-100' : 'opacity-0',
+            ].join(' ')}
+          />
+        </>
       )
     }
     if (concept.image_status === 'generating' || isRetrying) {
@@ -119,9 +137,18 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
     }
     if (concept.image_status === 'error') {
       return (
-        <div className="absolute inset-0 bg-red-950/30 border border-red-800/20 flex flex-col items-center justify-center gap-1.5">
-          <span className="text-red-400 text-2xl">⚠</span>
+        <div className="absolute inset-0 bg-red-950/30 border border-red-800/20 flex flex-col items-center justify-center gap-2 px-3 text-center">
+          <span className="text-red-400 text-2xl" aria-hidden>⚠</span>
           <span className="text-[11px] text-red-400">Error al generar</span>
+          <button
+            type="button"
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 text-[11px] font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
+          >
+            <RefreshCw size={12} className={isRetrying ? 'animate-spin' : ''} />
+            {isRetrying ? 'Reintentando…' : 'Reintentar'}
+          </button>
         </div>
       )
     }
@@ -145,15 +172,17 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
   }
 
   const canDownload = concept.image_status === 'done' && concept.image_url
-  const canRetry = concept.image_status === 'error' || concept.image_status === 'pending'
+  // Hover retry remains for pending-but-stuck concepts; error state shows an inline CTA above.
+  const canHoverRetry = concept.image_status === 'pending'
 
   return (
-    <motion.div
-      layout
-      className="group flex flex-col rounded-xl border border-border bg-card overflow-hidden transition-colors duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
-    >
-      {/* Image area — dynamic aspect ratio */}
-      <div className="relative w-full overflow-hidden" style={{ paddingBottom }}>
+    <>
+      <motion.div
+        layout
+        className="group flex flex-col rounded-xl border border-border bg-card overflow-hidden transition-colors duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
+      >
+        {/* Image area — dynamic aspect ratio */}
+        <div className="relative w-full overflow-hidden" style={{ paddingBottom }}>
         {renderImageArea()}
 
         {/* Hover overlay — action buttons */}
@@ -171,12 +200,13 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
               <Download size={15} />
             </a>
           )}
-          {canRetry && (
+          {canHoverRetry && (
             <button
               onClick={handleRetry}
               disabled={isRetrying}
+              aria-label="Reintentar generación"
               title="Reintentar generación"
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors backdrop-blur-sm disabled:opacity-50"
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors backdrop-blur-sm disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <RefreshCw size={15} className={isRetrying ? 'animate-spin' : ''} />
             </button>
@@ -191,10 +221,11 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
             </button>
           )}
           <button
-            onClick={handleDelete}
+            onClick={() => setConfirmOpen(true)}
             disabled={isDeleting}
+            aria-label="Eliminar concepto"
             title="Eliminar concepto"
-            className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30 transition-colors backdrop-blur-sm disabled:opacity-50"
+            className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 border border-red-500/30 transition-colors backdrop-blur-sm disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
           >
             <Trash2 size={15} />
           </button>
@@ -261,22 +292,47 @@ export function ConceptCard({ concept, aspectRatio = '1:1' }: ConceptCardProps) 
             <button
               onClick={() => concept.headline && copyText(concept.headline, 'headline')}
               disabled={!concept.headline}
+              aria-label={copiedHeadline ? 'Titular copiado' : 'Copiar titular'}
               title="Copiar titular"
-              className="p-1.5 rounded-md text-muted-foreground bg-secondary hover:bg-secondary/80 border border-border transition-colors disabled:opacity-40"
+              className={[
+                'p-1.5 rounded-md border transition-colors duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                copiedHeadline
+                  ? 'bg-primary/25 border-primary/40 text-primary-foreground'
+                  : 'text-muted-foreground bg-secondary hover:bg-secondary/80 border-border',
+              ].join(' ')}
             >
-              {copiedHeadline ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
+              {copiedHeadline ? <Check size={11} className="text-primary" /> : <Copy size={11} />}
             </button>
             <button
               onClick={() => concept.body_copy && copyText(concept.body_copy, 'body')}
               disabled={!concept.body_copy}
+              aria-label={copiedBody ? 'Copy copiado' : 'Copiar copy'}
               title="Copiar copy"
-              className="p-1.5 rounded-md text-muted-foreground bg-secondary hover:bg-secondary/80 border border-border transition-colors disabled:opacity-40"
+              className={[
+                'p-1.5 rounded-md border transition-colors duration-150 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                copiedBody
+                  ? 'bg-primary/25 border-primary/40 text-primary-foreground'
+                  : 'text-muted-foreground bg-secondary hover:bg-secondary/80 border-border',
+              ].join(' ')}
             >
-              {copiedBody ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
+              {copiedBody ? <Check size={11} className="text-primary" /> : <Copy size={11} />}
             </button>
           </div>
         </div>
-      </div>
-    </motion.div>
+        </div>
+      </motion.div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="¿Eliminar este concepto?"
+        description="Esta acción no se puede deshacer. La imagen y el copy generados se perderán."
+        confirmLabel={isDeleting ? 'Eliminando…' : 'Eliminar'}
+        cancelLabel="Cancelar"
+        variant="destructive"
+        loading={isDeleting}
+        onConfirm={handleDelete}
+      />
+    </>
   )
 }
