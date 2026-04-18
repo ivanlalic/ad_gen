@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { saveGeneratedReviews, type GeneratedReview } from '@/lib/actions/reviews'
 import { gooeyToast } from '@/components/ui/goey-toaster'
+import { AiModelPicker, type AiModelValue } from '@/components/ui/ai-model-picker'
 
 interface GenerateReviewsButtonProps {
   productId: string
@@ -14,6 +15,7 @@ const STARS = ['', '★', '★★', '★★★', '★★★★', '★★★★�
 export function GenerateReviewsButton({ productId, productName }: GenerateReviewsButtonProps) {
   const [state, setState] = useState<'idle' | 'generating' | 'preview' | 'saving'>('idle')
   const [reviews, setReviews] = useState<GeneratedReview[]>([])
+  const [model, setModel] = useState<AiModelValue>('gemini-3.1-flash-lite-preview')
 
   async function handleGenerate() {
     setState('generating')
@@ -25,7 +27,7 @@ export function GenerateReviewsButton({ productId, productName }: GenerateReview
       const res = await fetch('/api/generate/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId }),
+        body: JSON.stringify({ productId, model }),
       })
 
       if (!res.ok) {
@@ -63,7 +65,7 @@ export function GenerateReviewsButton({ productId, productName }: GenerateReview
       })
       setState('idle')
       setReviews([])
-    } catch (err) {
+    } catch {
       gooeyToast.update(toastId, {
         title: 'Error al guardar',
         type: 'error',
@@ -129,26 +131,29 @@ export function GenerateReviewsButton({ productId, productName }: GenerateReview
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleGenerate}
-      disabled={state === 'generating'}
-      className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary border border-border rounded-lg text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
-    >
-      {state === 'generating' ? (
-        <>
-          <span className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
-          Generando...
-        </>
-      ) : (
-        <>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a10 10 0 1 0 10 10" />
-            <path d="M12 6v6l4 2" />
-          </svg>
-          Generar reviews con IA
-        </>
-      )}
-    </button>
+    <div className="flex items-center gap-2 flex-wrap">
+      <button
+        type="button"
+        onClick={handleGenerate}
+        disabled={state === 'generating'}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary border border-border rounded-lg text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+      >
+        {state === 'generating' ? (
+          <>
+            <span className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
+            Generando...
+          </>
+        ) : (
+          <>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a10 10 0 1 0 10 10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+            Generar reviews con IA
+          </>
+        )}
+      </button>
+      <AiModelPicker value={model} onChange={setModel} />
+    </div>
   )
 }

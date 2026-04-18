@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@/lib/supabase/server'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const geminiAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const { productId, productContext } = body
+  const model: string = body.model ?? 'gemini-3.1-flash-lite-preview'
 
   let productName: string
   let productNiche: string
@@ -93,17 +94,28 @@ Audiencia: ${sexLabel}, ${productAgeMin}-${productAgeMax} años
 Generá las 20 reviews ahora.`
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: userPrompt }],
-      system: systemPrompt,
-    })
-
-    const rawText = message.content
-      .filter((b) => b.type === 'text')
-      .map((b) => (b as { type: 'text'; text: string }).text)
-      .join('')
+    let rawText = ''
+    if (model.startsWith('claude-')) {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      const message = await anthropic.messages.create({
+        model,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: userPrompt }],
+        system: systemPrompt,
+      })
+      rawText = message.content
+        .filter((b) => b.type === 'text')
+        .map((b) => (b as { type: 'text'; text: string }).text)
+        .join('')
+    } else {
+      const response = await geminiAi.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        config: { systemInstruction: systemPrompt, temperature: 0.8 },
+      })
+      rawText = response.text ?? ''
+    }
 
     // Extract JSON array from response
     const match = rawText.match(/\[[\s\S]*\]/)

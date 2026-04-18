@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const country: string | undefined = body.country
+  const model: string = body.model ?? 'gemini-3.1-flash-lite-preview'
   const countryConfig = country ? getCountryConfig(country) : undefined
   const outputLanguage = countryConfig ? countryConfig.language : 'Español (España)'
 
@@ -154,13 +155,25 @@ For age range: use integers, min >= 18, max <= 75, min < max.`
       ? `Analyze these ${successfulResults.length} product pages and synthesize the data into a single product profile:\n\n${pageText}`
       : `Analyze this product page and extract the data:\n\n${pageText}`
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite-preview',
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      config: { systemInstruction: systemPrompt, temperature: 0.2 },
-    })
-
-    const raw = response.text ?? ''
+    let raw = ''
+    if (model.startsWith('claude-')) {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      const msg = await anthropic.messages.create({
+        model,
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      })
+      raw = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('')
+    } else {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        config: { systemInstruction: systemPrompt, temperature: 0.2 },
+      })
+      raw = response.text ?? ''
+    }
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) {
       return NextResponse.json({ error: 'La IA no pudo extraer información de esta página' }, { status: 422 })

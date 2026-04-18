@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NicheSelector } from './niche-selector'
 import { getNicheConfig } from '@/lib/constants/niches'
+import { AiModelPicker, type AiModelValue } from '@/components/ui/ai-model-picker'
 
 export interface ProductBasicData {
   name: string
@@ -12,7 +13,7 @@ export interface ProductBasicData {
 interface StepProductProps {
   data: ProductBasicData
   onChange: (data: ProductBasicData) => void
-  onAnalyzeUrl: (url: string) => Promise<void>
+  onAnalyzeUrl: (url: string, model: AiModelValue) => Promise<void>
 }
 
 export function StepProduct({ data, onChange, onAnalyzeUrl }: StepProductProps) {
@@ -20,13 +21,14 @@ export function StepProduct({ data, onChange, onAnalyzeUrl }: StepProductProps) 
   const [url, setUrl] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
+  const [analyzeModel, setAnalyzeModel] = useState<AiModelValue>('gemini-3.1-flash-lite-preview')
 
   async function handleAnalyze() {
     if (!url.trim()) return
     setAnalyzing(true)
     setUrlError(null)
     try {
-      await onAnalyzeUrl(url.trim())
+      await onAnalyzeUrl(url.trim(), analyzeModel)
     } catch (err) {
       setUrlError(err instanceof Error ? err.message : 'Error al analizar la URL')
     } finally {
@@ -45,9 +47,12 @@ export function StepProduct({ data, onChange, onAnalyzeUrl }: StepProductProps) 
 
       {/* URL auto-fill */}
       <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 space-y-2.5">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">✨ Completar con IA</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">Nuevo</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">✨ Completar con IA</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">Nuevo</span>
+          </div>
+          <AiModelPicker value={analyzeModel} onChange={setAnalyzeModel} />
         </div>
         <p className="text-xs text-muted-foreground">
           Pegá la URL de tu landing o de un competidor y la IA completa todos los campos automáticamente.

@@ -62,11 +62,11 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
   }
 
   // URL → AI auto-fill all product fields
-  async function handleAnalyzeUrl(url: string) {
+  async function handleAnalyzeUrl(url: string, model?: string) {
     const res = await fetch('/api/analyze-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, country: storeData.country }),
+      body: JSON.stringify({ url, country: storeData.country, model }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Error al analizar la URL')

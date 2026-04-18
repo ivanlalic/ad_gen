@@ -7,6 +7,7 @@ import { updateProduct, saveProductInput, deleteProductInput, deleteProduct } fr
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { createClient } from '@/lib/supabase/client'
 import { NICHES } from '@/lib/constants/niches'
+import { AiModelPicker, type AiModelValue } from '@/components/ui/ai-model-picker'
 
 interface ProductPhoto {
   id: string
@@ -106,6 +107,7 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, winning
   const [photos, setPhotos] = useState<ProductPhoto[]>(initialPhotos)
   const [winningAds, setWinningAds] = useState<WinningAd[]>(initialWinningAds)
   const [analyzeUrls, setAnalyzeUrls] = useState<string[]>([''])
+  const [analyzeModel, setAnalyzeModel] = useState<AiModelValue>('gemini-3.1-flash-lite-preview')
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
 
@@ -138,7 +140,7 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, winning
       const res = await fetch('/api/analyze-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls, country: storeCountry }),
+        body: JSON.stringify({ urls, country: storeCountry, model: analyzeModel }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error al analizar la URL')
@@ -201,33 +203,41 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, winning
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
     setUploadingPhoto(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user')
 
-      const path = `${user.id}/${product.id}/${Date.now()}-${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('product-photos')
-        .upload(path, file)
-      if (uploadError) throw uploadError
+      let uploaded = 0
+      for (const file of files) {
+        try {
+          const path = `${user.id}/${product.id}/${Date.now()}-${file.name}`
+          const { error: uploadError } = await supabase.storage
+            .from('product-photos')
+            .upload(path, file)
+          if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-photos')
-        .getPublicUrl(path)
+          const { data: { publicUrl } } = supabase.storage
+            .from('product-photos')
+            .getPublicUrl(path)
 
-      await saveProductInput({
-        productId: product.id,
-        type: 'product_photo',
-        fileUrl: publicUrl,
-      })
+          await saveProductInput({
+            productId: product.id,
+            type: 'product_photo',
+            fileUrl: publicUrl,
+          })
 
-      setPhotos((prev) => [...prev, { id: Date.now().toString(), file_url: publicUrl }])
-      gooeyToast.success('Foto subida')
+          setPhotos((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, file_url: publicUrl }])
+          uploaded++
+        } catch (err) {
+          gooeyToast.error(`Error subiendo ${file.name}: ${err instanceof Error ? err.message : 'Error'}`)
+        }
+      }
+      if (uploaded > 0) gooeyToast.success(`${uploaded} foto(s) subida(s)`)
     } catch (err) {
-      gooeyToast.error(err instanceof Error ? err.message : 'Error al subir foto')
+      gooeyToast.error(err instanceof Error ? err.message : 'Error al subir fotos')
     } finally {
       setUploadingPhoto(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -244,33 +254,41 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, winning
   }
 
   async function handleWinningAdUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
     setUploadingWinningAd(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user')
 
-      const path = `${user.id}/${product.id}/${Date.now()}-${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('winning-ads')
-        .upload(path, file)
-      if (uploadError) throw uploadError
+      let uploaded = 0
+      for (const file of files) {
+        try {
+          const path = `${user.id}/${product.id}/${Date.now()}-${file.name}`
+          const { error: uploadError } = await supabase.storage
+            .from('winning-ads')
+            .upload(path, file)
+          if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('winning-ads')
-        .getPublicUrl(path)
+          const { data: { publicUrl } } = supabase.storage
+            .from('winning-ads')
+            .getPublicUrl(path)
 
-      await saveProductInput({
-        productId: product.id,
-        type: 'winning_ad',
-        fileUrl: publicUrl,
-      })
+          await saveProductInput({
+            productId: product.id,
+            type: 'winning_ad',
+            fileUrl: publicUrl,
+          })
 
-      setWinningAds((prev) => [...prev, { id: Date.now().toString(), file_url: publicUrl }])
-      gooeyToast.success('Ad de referencia subido')
+          setWinningAds((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, file_url: publicUrl }])
+          uploaded++
+        } catch (err) {
+          gooeyToast.error(`Error subiendo ${file.name}: ${err instanceof Error ? err.message : 'Error'}`)
+        }
+      }
+      if (uploaded > 0) gooeyToast.success(`${uploaded} ad(s) de referencia subido(s)`)
     } catch (err) {
-      gooeyToast.error(err instanceof Error ? err.message : 'Error al subir ad')
+      gooeyToast.error(err instanceof Error ? err.message : 'Error al subir ads')
     } finally {
       setUploadingWinningAd(false)
       if (winningAdInputRef.current) winningAdInputRef.current.value = ''
@@ -303,8 +321,9 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, winning
     <div className="space-y-8 max-w-2xl">
       {/* URL auto-fill */}
       <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 space-y-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-foreground">✨ Completar con IA</span>
+          <AiModelPicker value={analyzeModel} onChange={setAnalyzeModel} />
         </div>
         <p className="text-xs text-muted-foreground">
           Pegá una o más URLs (tu landing, competidores) para actualizar todos los campos automáticamente.
@@ -630,6 +649,7 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, winning
             ref={winningAdInputRef}
             type="file"
             accept="image/*,video/*"
+            multiple
             onChange={handleWinningAdUpload}
             className="hidden"
           />
@@ -680,6 +700,7 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, winning
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handlePhotoUpload}
             className="hidden"
           />
