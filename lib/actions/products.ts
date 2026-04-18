@@ -114,6 +114,15 @@ export async function updateProduct(data: UpdateProductData) {
   revalidatePath('/stores')
 }
 
+export async function markProductHasReviews(productId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  await supabase.from('products').update({ has_reviews: true }).eq('id', productId)
+  revalidatePath('/stores')
+}
+
 export async function deleteProduct(productId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

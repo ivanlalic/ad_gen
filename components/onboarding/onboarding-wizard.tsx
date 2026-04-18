@@ -10,7 +10,7 @@ import { StepColors, type ColorData } from './step-colors'
 import { StepTone, type ToneData } from './step-tone'
 import { StepAssets, type AssetsData } from './step-assets'
 import { createStore } from '@/lib/actions/stores'
-import { createProduct, saveProductInput } from '@/lib/actions/products'
+import { createProduct, saveProductInput, markProductHasReviews } from '@/lib/actions/products'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { createClient } from '@/lib/supabase/client'
@@ -97,27 +97,6 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
     }))
 
     gooeyToast.success('Campos completados con IA — revisá y ajustá')
-  }
-
-  // AI generate reviews preview (returns raw JSON string)
-  async function handleGenerateReviews(): Promise<string> {
-    const res = await fetch('/api/generate/reviews', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        productContext: {
-          name: productData.name,
-          niche: productData.niche,
-          targetSex: audienceData.targetSex,
-          targetAgeMin: audienceData.targetAgeMin,
-          targetAgeMax: audienceData.targetAgeMax,
-          country: storeData.country,
-        },
-      }),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Error al generar reviews')
-    return JSON.stringify(data.reviews)
   }
 
   function canAdvance(): boolean {
@@ -222,6 +201,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
           source: 'manual',
           isSimulated: false,
         })
+        await markProductHasReviews(productId)
       }
 
       gooeyToast.update(toastId, {
@@ -250,7 +230,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
     <StepAudience key="audience" data={audienceData} onChange={setAudienceData} />,
     <StepColors key="colors" niche={productData.niche} data={colorData} onChange={setColorData} />,
     <StepTone key="tone" data={toneData} onChange={setToneData} />,
-    <StepAssets key="assets" data={assetsData} onChange={setAssetsData} onGenerateReviews={handleGenerateReviews} />,
+    <StepAssets key="assets" data={assetsData} onChange={setAssetsData} />,
   ]
 
   const isLastStep = step === TOTAL_STEPS - 1
