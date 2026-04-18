@@ -416,14 +416,14 @@ async function handleGenerateAngles() {
               {/* Num angles selector */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Número de ángulos</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {[2, 3, 4, 5, 7, 10].map(n => (
                     <button
                       key={n}
                       type="button"
                       onClick={() => { setNumAngles(n); setGeneratedAngles([]) }}
                       className={[
-                        'w-10 h-10 rounded-lg border text-sm font-medium transition-colors duration-150',
+                        'w-10 h-10 rounded-lg border text-sm font-medium transition-colors duration-150 shrink-0',
                         numAngles === n
                           ? 'border-primary bg-primary/10 text-foreground'
                           : 'border-border bg-card text-muted-foreground hover:border-primary/40',

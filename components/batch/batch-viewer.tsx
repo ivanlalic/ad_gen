@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, Trash2, Pencil, Check, X } from 'lucide-react'
+import { Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, Trash2, Pencil, Check, X, ImageOff } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ConceptCard } from '@/components/batch/concept-card'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { PageHeader } from '@/components/ui/page-header'
@@ -102,6 +103,10 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [connectionLost, setConnectionLost] = useState(false)
   const slowWarnedRef = useRef(false)
+  const [selectedConcepts, setSelectedConcepts] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+  const [bulkDownloading, setBulkDownloading] = useState(false)
 
   const aspectRatio = batch.nb2_aspect_ratios?.[0] ?? '1:1'
   const totalImages = concepts.length || batch.total_concepts
@@ -260,6 +265,100 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
     return () => { if (elapsedInterval.current) clearInterval(elapsedInterval.current) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batch.status, batch.generate_images, batch.id])
+
+  function toggleSelectConcept(id: string) {
+    setSelectedConcepts((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function selectAllConcepts() {
+    setSelectedConcepts(new Set(concepts.map((c) => c.id)))
+  }
+
+  function clearSelection() {
+    setSelectedConcepts(new Set())
+  }
+
+  async function handleBulkDelete() {
+    if (selectedConcepts.size === 0 || bulkDeleting) return
+    setBulkDeleting(true)
+    const ids = [...selectedConcepts]
+    try {
+      await Promise.all(
+        ids.map((id) => fetch(`/api/concepts/${id}`, { method: 'DELETE' }).catch(() => null))
+      )
+      setSelectedConcepts(new Set())
+      setConfirmBulkDelete(false)
+      gooeyToast.success(`${ids.length} concepto${ids.length !== 1 ? 's' : ''} eliminado${ids.length !== 1 ? 's' : ''}`)
+      router.refresh()
+    } catch (err) {
+      gooeyToast.error(`Error al borrar: ${err instanceof Error ? err.message : 'Error desconocido'}`)
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  async function handleBulkDownload() {
+    if (selectedConcepts.size === 0 || bulkDownloading) return
+    const primaryFormat = (batch.nb2_aspect_ratios?.[0] ?? '4:5') as AdFormat
+    const productName = product?.name ?? 'ad'
+    const batchCreatedAt = batch.created_at
+    const batchLabel = batch.label ?? undefined
+
+    type DownloadTask = { filename: string; url: string }
+    const tasks: DownloadTask[] = []
+    concepts.forEach((concept, i) => {
+      if (!selectedConcepts.has(concept.id)) return
+      const numberInBatch = i + 1
+      const base = { productName, batchCreatedAt, label: batchLabel, numberInBatch }
+      if (concept.image_status === 'done' && concept.image_url) {
+        tasks.push({ filename: buildAdFilename({ ...base, format: primaryFormat }), url: concept.image_url })
+      }
+      if (concept.image_url_9_16 && primaryFormat !== '9:16') {
+        tasks.push({ filename: buildAdFilename({ ...base, format: '9:16' }), url: concept.image_url_9_16 })
+      }
+      if (concept.image_url_1_1 && primaryFormat !== '1:1') {
+        tasks.push({ filename: buildAdFilename({ ...base, format: '1:1' }), url: concept.image_url_1_1 })
+      }
+    })
+    if (tasks.length === 0) {
+      gooeyToast('Ninguno de los seleccionados tiene imagen generada')
+      return
+    }
+
+    setBulkDownloading(true)
+    try {
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      const CONCURRENCY = 6
+      for (let i = 0; i < tasks.length; i += CONCURRENCY) {
+        await Promise.all(tasks.slice(i, i + CONCURRENCY).map(async (task) => {
+          try {
+            const res = await fetch(task.url)
+            if (!res.ok) return
+            zip.file(task.filename, await res.blob())
+          } catch { /* skip failed */ }
+        }))
+      }
+      const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+      const url = URL.createObjectURL(content)
+      const now = new Date()
+      const stamp = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getFullYear()).slice(-2)}`
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `adgen_seleccion_${stamp}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setBulkDownloading(false)
+    }
+  }
 
   async function handleSaveLabel() {
     setLabelSaving(true)
@@ -546,6 +645,47 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         </div>
       )}
 
+      {/* Bulk selection bar — sticky, appears when at least one concept is selected */}
+      {selectedConcepts.size > 0 && (
+        <div className="sticky top-2 z-20 mb-4 flex flex-wrap items-center gap-2 px-3.5 py-2.5 rounded-xl border border-primary/30 bg-popover/90 backdrop-blur-md shadow-lg shadow-black/30">
+          <span className="text-sm font-medium text-foreground">
+            {selectedConcepts.size} seleccionado{selectedConcepts.size !== 1 ? 's' : ''}
+          </span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            de {concepts.length}
+          </span>
+          <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+            {selectedConcepts.size < concepts.length && (
+              <Button onClick={selectAllConcepts} variant="ghost" size="sm">
+                Seleccionar todos ({concepts.length})
+              </Button>
+            )}
+            <Button
+              onClick={handleBulkDownload}
+              disabled={bulkDownloading}
+              variant="outline"
+              size="sm"
+            >
+              <Download size={13} />
+              {bulkDownloading ? 'Zip...' : 'Descargar'}
+            </Button>
+            <Button
+              onClick={() => setConfirmBulkDelete(true)}
+              disabled={bulkDeleting}
+              variant="outline"
+              size="sm"
+              className="text-red-400 hover:text-red-300 border-red-400/20 hover:border-red-400/40"
+            >
+              <Trash2 size={13} />
+              Borrar
+            </Button>
+            <Button onClick={clearSelection} variant="ghost" size="sm" aria-label="Cancelar selección">
+              <X size={13} />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Progress bar */}
       {isGeneratingImages && (
         <div className="mb-8 p-4 bg-card border border-border rounded-xl space-y-3">
@@ -594,19 +734,34 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
           <p className="text-xs text-muted-foreground/60">Esto puede tardar hasta 60 segundos</p>
         </div>
       ) : concepts.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: Math.min(batch.total_concepts || 6, 12) }).map((_, i) => (
-            <div key={i} className="flex flex-col rounded-xl border border-border bg-card overflow-hidden">
-              <div className="animate-pulse bg-muted/40" style={{ paddingBottom: '100%' }} />
-              <div className="p-4 space-y-3">
-                <div className="h-3 bg-muted/40 animate-pulse rounded w-1/3" />
-                <div className="h-4 bg-muted/40 animate-pulse rounded w-3/4" />
-                <div className="h-3 bg-muted/40 animate-pulse rounded w-full" />
-                <div className="h-3 bg-muted/40 animate-pulse rounded w-5/6" />
+        batch.status === 'done' || batch.status === 'error' ? (
+          <EmptyState
+            icon={ImageOff}
+            title="Este batch no tiene conceptos"
+            description="No se generaron conceptos o fueron eliminados. Creá un batch nuevo para seguir."
+          >
+            <Link
+              href={product ? `/batch/new?productId=${product.id}` : '/stores'}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Crear batch nuevo
+            </Link>
+          </EmptyState>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: Math.min(batch.total_concepts || 6, 12) }).map((_, i) => (
+              <div key={i} className="flex flex-col rounded-xl border border-border bg-card overflow-hidden">
+                <div className="animate-pulse bg-muted/40" style={{ paddingBottom: '100%' }} />
+                <div className="p-4 space-y-3">
+                  <div className="h-3 bg-muted/40 animate-pulse rounded w-1/3" />
+                  <div className="h-4 bg-muted/40 animate-pulse rounded w-3/4" />
+                  <div className="h-3 bg-muted/40 animate-pulse rounded w-full" />
+                  <div className="h-3 bg-muted/40 animate-pulse rounded w-5/6" />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {concepts.map((concept, i) => (
@@ -627,6 +782,9 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
                   label: batch.label ?? undefined,
                   indexInBatch: i + 1,
                 }}
+                isSelected={selectedConcepts.has(concept.id)}
+                selectionMode={selectedConcepts.size > 0}
+                onToggleSelect={() => toggleSelectConcept(concept.id)}
               />
             </motion.div>
           ))}
@@ -642,6 +800,17 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         variant="destructive"
         loading={isDeleting}
         onConfirm={handleDelete}
+      />
+
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        onOpenChange={setConfirmBulkDelete}
+        title={`¿Borrar ${selectedConcepts.size} concepto${selectedConcepts.size !== 1 ? 's' : ''}?`}
+        description="Se eliminarán los conceptos seleccionados y sus imágenes. Esta acción no se puede deshacer."
+        confirmLabel={`Borrar ${selectedConcepts.size}`}
+        variant="destructive"
+        loading={bulkDeleting}
+        onConfirm={handleBulkDelete}
       />
     </div>
   )

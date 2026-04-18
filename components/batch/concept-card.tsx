@@ -47,6 +47,10 @@ interface ConceptCardProps {
     label?: string
     indexInBatch: number
   }
+  // Bulk selection (optional — only used by BatchViewer when selection mode is active)
+  isSelected?: boolean
+  selectionMode?: boolean
+  onToggleSelect?: () => void
 }
 
 const ASPECT_PADDING: Record<string, string> = {
@@ -66,7 +70,15 @@ const ASPECT_RATIO_MAP: Record<AdFormat, string> = {
   '1:1': '1 / 1',
 }
 
-export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }: ConceptCardProps) {
+export function ConceptCard({
+  concept,
+  aspectRatio = '1:1',
+  format,
+  batchMeta,
+  isSelected = false,
+  selectionMode = false,
+  onToggleSelect,
+}: ConceptCardProps) {
   const router = useRouter()
   const primaryFormat: AdFormat = (format ?? (aspectRatio as AdFormat) ?? '4:5')
   const [copiedHeadline, setCopiedHeadline] = useState(false)
@@ -369,7 +381,13 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
   return (
     <motion.div
       layout
-      className="group flex flex-col rounded-xl border border-border bg-card overflow-hidden transition-colors duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
+      data-selected={isSelected || undefined}
+      className={[
+        'group relative flex flex-col rounded-xl border bg-card overflow-hidden transition-all duration-200',
+        isSelected
+          ? 'border-primary ring-2 ring-primary/40 shadow-lg shadow-primary/10'
+          : 'border-border hover:border-primary/30 hover:shadow-lg hover:shadow-black/20',
+      ].join(' ')}
     >
       {/* Format tabs */}
       <div className="flex items-center gap-1 px-2 pt-2 pb-1">
@@ -417,6 +435,27 @@ export function ConceptCard({ concept, aspectRatio = '1:1', format, batchMeta }:
       {/* Image area — dynamic aspect ratio per active tab */}
       <div className="relative w-full overflow-hidden" style={{ paddingBottom }}>
         {renderImageArea()}
+
+        {/* Bulk-select checkbox — visible when selectionMode is on or this card is selected; hover-only otherwise */}
+        {onToggleSelect && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleSelect() }}
+            aria-label={isSelected ? 'Deseleccionar' : 'Seleccionar'}
+            aria-pressed={isSelected}
+            className={[
+              'absolute top-2 left-2 z-10 w-6 h-6 rounded-md flex items-center justify-center border transition-all duration-150',
+              'backdrop-blur-sm',
+              isSelected
+                ? 'bg-primary border-primary text-primary-foreground opacity-100'
+                : selectionMode
+                  ? 'bg-black/50 border-white/30 text-transparent hover:text-white/80 hover:bg-black/70 opacity-100'
+                  : 'bg-black/50 border-white/30 text-transparent hover:text-white/80 hover:bg-black/70 opacity-0 group-hover:opacity-100',
+            ].join(' ')}
+          >
+            <Check size={13} strokeWidth={3} className={isSelected ? 'opacity-100' : 'opacity-60'} />
+          </button>
+        )}
 
         {/* Hover overlay — action buttons */}
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">

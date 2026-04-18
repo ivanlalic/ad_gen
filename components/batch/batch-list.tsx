@@ -7,6 +7,7 @@ import { Trash2, Square, CheckSquare, ExternalLink } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Button } from '@/components/ui/button'
 import { gooeyToast } from '@/components/ui/goey-toaster'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 interface Batch {
   id: string
@@ -32,8 +33,13 @@ export function BatchList({ batches }: BatchListProps) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState<Set<string>>(new Set())
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
 
   if (batches.length === 0) return null
+
+  function askDelete(ids: string[]) {
+    setPendingDeleteIds(ids)
+  }
 
   const sorted = [...batches].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -52,9 +58,6 @@ export function BatchList({ batches }: BatchListProps) {
     setSelected(allSelected ? new Set() : new Set(sorted.map((b) => b.id)))
 
   async function doDelete(ids: string[]) {
-    const label = ids.length === 1 ? '1 batch' : `${ids.length} batches`
-    if (!confirm(`¿Borrar ${label} y todos sus conceptos? Esta acción no se puede deshacer.`)) return
-
     setDeleting((prev) => new Set([...prev, ...ids]))
     try {
       const res = await fetch('/api/batches/delete', {
@@ -65,6 +68,7 @@ export function BatchList({ batches }: BatchListProps) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setSelected(new Set())
+      setPendingDeleteIds(null)
       router.refresh()
     } catch (err) {
       gooeyToast.error(`Error al borrar: ${err instanceof Error ? err.message : 'Error desconocido'}`)
@@ -91,7 +95,7 @@ export function BatchList({ batches }: BatchListProps) {
             size="sm"
             variant="outline"
             className="h-7 text-xs text-red-400 border-red-400/20 hover:text-red-300 hover:border-red-400/40"
-            onClick={() => doDelete([...selected])}
+            onClick={() => askDelete([...selected])}
           >
             <Trash2 size={11} />
             Borrar seleccionados
@@ -138,7 +142,7 @@ export function BatchList({ batches }: BatchListProps) {
 
               <button
                 disabled={isDeleting}
-                onClick={() => doDelete([batch.id])}
+                onClick={() => askDelete([batch.id])}
                 className="text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0 disabled:opacity-30"
                 title="Borrar batch"
               >
@@ -162,6 +166,21 @@ export function BatchList({ batches }: BatchListProps) {
           {allSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
         </button>
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteIds !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteIds(null) }}
+        title={
+          pendingDeleteIds
+            ? `¿Borrar ${pendingDeleteIds.length === 1 ? 'este batch' : `${pendingDeleteIds.length} batches`}?`
+            : '¿Borrar?'
+        }
+        description="Se eliminarán todos los conceptos e imágenes asociados. Esta acción no se puede deshacer."
+        confirmLabel="Borrar"
+        variant="destructive"
+        loading={pendingDeleteIds ? pendingDeleteIds.some((id) => deleting.has(id)) : false}
+        onConfirm={() => { if (pendingDeleteIds) return doDelete(pendingDeleteIds) }}
+      />
     </div>
   )
 }
