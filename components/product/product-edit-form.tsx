@@ -2,13 +2,18 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2, Upload, ImageIcon, Plus, X } from 'lucide-react'
+import { Trash2, Upload, ImageIcon, Plus, X, Trophy } from 'lucide-react'
 import { updateProduct, saveProductInput, deleteProductInput, deleteProduct } from '@/lib/actions/products'
 import { gooeyToast } from '@/components/ui/goey-toaster'
 import { createClient } from '@/lib/supabase/client'
 import { NICHES } from '@/lib/constants/niches'
 
 interface ProductPhoto {
+  id: string
+  file_url: string | null
+}
+
+interface WinningAd {
   id: string
   file_url: string | null
 }
@@ -37,6 +42,7 @@ interface ProductEditFormProps {
     use_cases: string | null
   }
   productPhotos: ProductPhoto[]
+  winningAds?: WinningAd[]
 }
 
 function TagInput({
@@ -86,16 +92,19 @@ function TagInput({
   )
 }
 
-export function ProductEditForm({ product, productPhotos: initialPhotos, storeCountry = 'ES' }: ProductEditFormProps) {
+export function ProductEditForm({ product, productPhotos: initialPhotos, winningAds: initialWinningAds = [], storeCountry = 'ES' }: ProductEditFormProps) {
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const winningAdInputRef = useRef<HTMLInputElement>(null)
 
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [uploadingWinningAd, setUploadingWinningAd] = useState(false)
   const [photos, setPhotos] = useState<ProductPhoto[]>(initialPhotos)
+  const [winningAds, setWinningAds] = useState<WinningAd[]>(initialWinningAds)
   const [analyzeUrls, setAnalyzeUrls] = useState<string[]>([''])
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<string | null>(null)
@@ -231,6 +240,49 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, storeCo
       setPhotos((prev) => prev.filter((p) => p.id !== photoId))
     } catch {
       gooeyToast.error('Error al eliminar foto')
+    }
+  }
+
+  async function handleWinningAdUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingWinningAd(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user')
+
+      const path = `${user.id}/${product.id}/${Date.now()}-${file.name}`
+      const { error: uploadError } = await supabase.storage
+        .from('winning-ads')
+        .upload(path, file)
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('winning-ads')
+        .getPublicUrl(path)
+
+      await saveProductInput({
+        productId: product.id,
+        type: 'winning_ad',
+        fileUrl: publicUrl,
+      })
+
+      setWinningAds((prev) => [...prev, { id: Date.now().toString(), file_url: publicUrl }])
+      gooeyToast.success('Ad de referencia subido')
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error al subir ad')
+    } finally {
+      setUploadingWinningAd(false)
+      if (winningAdInputRef.current) winningAdInputRef.current.value = ''
+    }
+  }
+
+  async function handleDeleteWinningAd(adId: string) {
+    try {
+      await deleteProductInput(adId)
+      setWinningAds((prev) => prev.filter((a) => a.id !== adId))
+    } catch {
+      gooeyToast.error('Error al eliminar ad de referencia')
     }
   }
 
@@ -524,6 +576,62 @@ export function ProductEditForm({ product, productPhotos: initialPhotos, storeCo
             onChange={(e) => setUseCases(e.target.value)}
             placeholder="Momento de uso, frecuencia, contexto, situaciones típicas."
             className="w-full px-3 py-2.5 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          />
+        </div>
+      </div>
+
+      {/* Winning ads */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Trophy size={14} className="text-yellow-500" />
+          <label className="text-sm font-medium text-foreground">Ads ganadores de referencia</label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          La IA analiza estos ads para inspirar copy y estructura visual en nuevos batches.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {winningAds.map((ad) => (
+            <div key={ad.id} className="relative group w-24 h-24 rounded-lg overflow-hidden border border-border">
+              {ad.file_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={ad.file_url} alt="Winning ad"
+                  className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-muted flex items-center justify-center">
+                  <ImageIcon size={20} className="text-muted-foreground" />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDeleteWinningAd(ad.id)}
+                className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-red-400"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => winningAdInputRef.current?.click()}
+            disabled={uploadingWinningAd}
+            className="w-24 h-24 rounded-lg border border-dashed border-border flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {uploadingWinningAd ? (
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Upload size={16} />
+                <span className="text-[10px]">Subir</span>
+              </>
+            )}
+          </button>
+          <input
+            ref={winningAdInputRef}
+            type="file"
+            accept="image/*,video/*"
+            onChange={handleWinningAdUpload}
+            className="hidden"
           />
         </div>
       </div>

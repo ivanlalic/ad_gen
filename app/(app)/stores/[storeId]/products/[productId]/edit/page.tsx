@@ -29,12 +29,20 @@ export default async function ProductEditPage({ params }: Props) {
 
   if (!product) notFound()
 
-  const { data: productPhotos } = await supabase
-    .from('product_inputs')
-    .select('id, file_url')
-    .eq('product_id', productId)
-    .eq('type', 'product_photo')
-    .not('file_url', 'is', null)
+  const [{ data: productPhotos }, { data: winningAds }] = await Promise.all([
+    supabase
+      .from('product_inputs')
+      .select('id, file_url')
+      .eq('product_id', productId)
+      .eq('type', 'product_photo')
+      .not('file_url', 'is', null),
+    supabase
+      .from('product_inputs')
+      .select('id, file_url')
+      .eq('product_id', productId)
+      .eq('type', 'winning_ad')
+      .not('file_url', 'is', null),
+  ])
 
   const storeName = (product as any).stores?.name ?? 'Tienda'
   const storeCountry = (product as any).stores?.country ?? 'ES'
@@ -61,6 +69,7 @@ export default async function ProductEditPage({ params }: Props) {
         <ProductEditForm
           product={product}
           productPhotos={productPhotos ?? []}
+          winningAds={winningAds ?? []}
           storeCountry={storeCountry}
         />
       </div>

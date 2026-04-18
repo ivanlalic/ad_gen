@@ -168,6 +168,7 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
 
       if (allFiles.length > 0) {
         const { data: { user } } = await supabase.auth.getUser()
+        const failedUploads: string[] = []
         for (let i = 0; i < allFiles.length; i++) {
           if (!user) break // no user — skip remaining uploads, don't throw
           const { file, bucket, inputType } = allFiles[i]
@@ -187,8 +188,16 @@ export function OnboardingWizard({ existingStoreId }: { existingStoreId?: string
             await saveProductInput({ productId, type: inputType, fileUrl: publicUrl })
           } catch (uploadErr) {
             // Skip failed uploads — don't block product creation
+            const errMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr)
             console.warn(`Upload skipped (${file.name}):`, uploadErr)
+            failedUploads.push(`${file.name}: ${errMsg}`)
           }
+        }
+        if (failedUploads.length > 0) {
+          gooeyToast.error(
+            `${failedUploads.length} archivo(s) no se subieron — subílos desde "Editar producto"`,
+            { duration: 8000 }
+          )
         }
       }
 
