@@ -25,7 +25,7 @@ export interface CreateBatchData {
   keyOffers?: string
   label?: string
   selectedTemplates?: number[]
-  generationMode?: 'templates' | 'angles'
+  generationMode?: 'templates' | 'angles' | 'winning_ads'
   angleConfigs?: AngleConfig[]
 }
 

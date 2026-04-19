@@ -11,6 +11,7 @@ import { getCountryConfig } from '@/lib/constants/countries'
 import { FormatSelector } from '@/components/format-selector'
 import { DEFAULT_FORMAT, type AdFormat } from '@/lib/ad-formats'
 import { Toggle } from '@/components/ui/toggle'
+import { AiModelPicker, type AiModelValue } from '@/components/ui/ai-model-picker'
 
 const CONCEPT_MODELS = [
   { value: 'gemini-3.1-flash-lite-preview', label: 'Gemini Flash Lite', desc: 'Más rápido, más barato', badge: 'Recomendado' },
@@ -97,13 +98,18 @@ export function BatchStudio({ product }: BatchStudioProps) {
   const [generateImages, setGenerateImages] = useState(true)
 
   // Angles mode
-  const [generationMode, setGenerationMode] = useState<'templates' | 'angles'>('templates')
+  const [generationMode, setGenerationMode] = useState<'templates' | 'angles' | 'winning_ads'>('templates')
   const [numAngles, setNumAngles] = useState(3)
   const [generatedAngles, setGeneratedAngles] = useState<Array<AngleConfig & { selected: boolean }>>([])
   const [anglesLoading, setAnglesLoading] = useState(false)
+  const [anglesModel, setAnglesModel] = useState<AiModelValue>('claude-haiku-4-5-20251001')
   const [manualAngleInput, setManualAngleInput] = useState('')
   const [improvingAngle, setImprovingAngle] = useState(false)
   const [improvedAnglePreview, setImprovedAnglePreview] = useState<{ title: string; type: string; description: string } | null>(null)
+  // Winning ads mode
+  const [winningAngles, setWinningAngles] = useState<Array<AngleConfig & { selected: boolean }>>([])
+  const [winningAnglesLoading, setWinningAnglesLoading] = useState(false)
+  const [winningAnglesModel, setWinningAnglesModel] = useState<AiModelValue>('claude-haiku-4-5-20251001')
 
   const [launching, setLaunching] = useState(false)
 
@@ -128,7 +134,7 @@ async function handleGenerateAngles() {
       const res = await fetch('/api/generate/angles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id, numAngles, keyOffers: keyOffers || undefined }),
+        body: JSON.stringify({ productId: product.id, numAngles, keyOffers: keyOffers || undefined, model: anglesModel }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error generando ángulos')
@@ -177,6 +183,24 @@ async function handleGenerateAngles() {
     setImprovedAnglePreview(null)
   }
 
+  async function handleGenerateWinningAdAngles() {
+    setWinningAnglesLoading(true)
+    try {
+      const res = await fetch('/api/generate/winning-ad-angles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id, model: winningAnglesModel }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error analizando winning ads')
+      setWinningAngles(data.angles.map((a: AngleConfig) => ({ ...a, selected: true })))
+    } catch (err) {
+      gooeyToast.error(err instanceof Error ? err.message : 'Error analizando winning ads')
+    } finally {
+      setWinningAnglesLoading(false)
+    }
+  }
+
   async function handleLaunch() {
     if (!primaryFormat) {
       gooeyToast.error('Seleccioná un formato')
@@ -188,12 +212,19 @@ async function handleGenerateAngles() {
       return
     }
 
+    if (generationMode === 'winning_ads' && winningAngles.filter(a => a.selected).length === 0) {
+      gooeyToast.error('Analizá y seleccioná al menos un ángulo ganador')
+      return
+    }
+
     setLaunching(true)
     const toastId = gooeyToast('Creando batch...', {
       duration: Infinity,
     })
 
-    const selectedAngles = generatedAngles.filter(a => a.selected).map(({ selected: _, ...a }) => a)
+    const selectedAngles = generationMode === 'winning_ads'
+      ? winningAngles.filter(a => a.selected).map(({ selected: _, ...a }) => a)
+      : generatedAngles.filter(a => a.selected).map(({ selected: _, ...a }) => a)
 
     try {
       const batchId = await createBatch({
@@ -212,7 +243,7 @@ async function handleGenerateAngles() {
         label: batchLabel.trim() || undefined,
         selectedTemplates: generationMode === 'templates' && selectedTemplates.length < TEMPLATES.length ? selectedTemplates : undefined,
         generationMode,
-        angleConfigs: generationMode === 'angles' ? selectedAngles : undefined,
+        angleConfigs: (generationMode === 'angles' || generationMode === 'winning_ads') ? selectedAngles : undefined,
       })
 
       gooeyToast.update(toastId, {
@@ -349,24 +380,146 @@ async function handleGenerateAngles() {
 
           {/* Mode toggle */}
           <div className="flex gap-0 rounded-lg border border-border overflow-hidden w-fit text-sm mb-4">
-            {(['templates', 'angles'] as const).map(mode => (
+            {([
+              { value: 'templates', label: 'Templates' },
+              { value: 'angles', label: 'Ángulos IA' },
+              { value: 'winning_ads', label: '🏆 Ganadores' },
+            ] as const).map(({ value, label }) => (
               <button
-                key={mode}
+                key={value}
                 type="button"
-                onClick={() => setGenerationMode(mode)}
+                onClick={() => setGenerationMode(value)}
                 className={[
                   'px-5 py-2 transition-colors duration-150',
-                  generationMode === mode
+                  generationMode === value
                     ? 'bg-primary text-primary-foreground font-medium'
                     : 'text-muted-foreground hover:text-foreground',
                 ].join(' ')}
               >
-                {mode === 'templates' ? 'Templates' : 'Ángulos IA'}
+                {label}
               </button>
             ))}
           </div>
 
-          {generationMode === 'templates' ? (
+          {generationMode === 'winning_ads' ? (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                La IA analiza tus winning ads reales y extrae los ángulos de messaging que los hacen funcionar. Los conceptos del batch serán variaciones y evoluciones de esos ángulos.
+              </p>
+
+              {winningAdsCount === 0 ? (
+                <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-sm text-amber-400">
+                  No hay winning ads subidos para este producto. Subílos desde <span className="font-medium">"Editar producto"</span> para usar este modo.
+                </div>
+              ) : (
+                <>
+                  {/* Thumbnails */}
+                  <div className="flex flex-wrap gap-2">
+                    {product.product_inputs
+                      .filter(i => i.type === 'winning_ad' && i.file_url)
+                      .map((ad, idx) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={idx}
+                          src={ad.file_url!}
+                          alt={`Winning ad ${idx + 1}`}
+                          className="w-16 h-16 object-cover rounded-lg border border-border"
+                        />
+                      ))}
+                    <div className="flex items-center pl-1 text-xs text-muted-foreground">
+                      {winningAdsCount} ad{winningAdsCount !== 1 ? 's' : ''} ganador{winningAdsCount !== 1 ? 'es' : ''}
+                    </div>
+                  </div>
+
+                  {winningAngles.length === 0 ? (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleGenerateWinningAdAngles}
+                        disabled={winningAnglesLoading}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {winningAnglesLoading ? (
+                          <>
+                            <div className="w-4 h-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                            Analizando {winningAdsCount} ad{winningAdsCount !== 1 ? 's' : ''}...
+                          </>
+                        ) : `🏆 Analizar ${winningAdsCount} ad${winningAdsCount !== 1 ? 's' : ''} ganador${winningAdsCount !== 1 ? 'es' : ''}`}
+                      </button>
+                      <AiModelPicker value={winningAnglesModel} onChange={setWinningAnglesModel} />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {(() => {
+                        const selectedCount = winningAngles.filter(a => a.selected).length
+                        const perAngle = selectedCount > 0 ? Math.floor(totalConcepts / selectedCount) : 0
+                        const remainder = selectedCount > 0 ? totalConcepts % selectedCount : 0
+                        return (
+                          <p className="text-xs text-muted-foreground">
+                            {selectedCount} ángulo{selectedCount !== 1 ? 's' : ''} seleccionado{selectedCount !== 1 ? 's' : ''} · {totalConcepts} conceptos → {perAngle}{remainder > 0 ? `-${perAngle + 1}` : ''} por ángulo
+                          </p>
+                        )
+                      })()}
+
+                      <div className="space-y-2">
+                        {winningAngles.map((angle, idx) => (
+                          <div
+                            key={angle.id}
+                            className={[
+                              'p-3.5 rounded-xl border transition-colors duration-150',
+                              angle.selected
+                                ? 'border-amber-500/30 bg-amber-500/5'
+                                : 'border-border bg-card opacity-50',
+                            ].join(' ')}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[10px] font-medium text-amber-400/70 uppercase tracking-wider">
+                                    🏆 Ad {idx + 1}
+                                  </span>
+                                </div>
+                                <p className="text-sm font-semibold text-foreground leading-snug">{angle.title}</p>
+                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{angle.description}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setWinningAngles(prev => {
+                                    const selected = prev.filter(a => a.selected)
+                                    const target = prev.find(a => a.id === angle.id)
+                                    if (target?.selected && selected.length <= 1) return prev
+                                    return prev.map(a => a.id === angle.id ? { ...a, selected: !a.selected } : a)
+                                  })
+                                }}
+                                className={[
+                                  'shrink-0 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors duration-150 mt-0.5',
+                                  angle.selected
+                                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                                    : 'border-border bg-card text-muted-foreground hover:text-foreground',
+                                ].join(' ')}
+                              >
+                                {angle.selected ? '✓' : '+'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => { setWinningAngles([]); handleGenerateWinningAdAngles() }}
+                        disabled={winningAnglesLoading}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      >
+                        Reanalizar
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : generationMode === 'templates' ? (
             <>
               <p className="text-xs text-muted-foreground mb-3">
                 Seleccioná qué tipos de ads generar. {selectedTemplates.length}/{TEMPLATES.length} activos.
@@ -437,19 +590,22 @@ async function handleGenerateAngles() {
 
               {/* Generate angles button or angle cards */}
               {generatedAngles.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={handleGenerateAngles}
-                  disabled={anglesLoading}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  {anglesLoading ? (
-                    <>
-                      <div className="w-4 h-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
-                      Generando {numAngles} ángulos...
-                    </>
-                  ) : `✨ Generar ${numAngles} ángulos`}
-                </button>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleGenerateAngles}
+                    disabled={anglesLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {anglesLoading ? (
+                      <>
+                        <div className="w-4 h-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                        Generando {numAngles} ángulos...
+                      </>
+                    ) : `✨ Generar ${numAngles} ángulos`}
+                  </button>
+                  <AiModelPicker value={anglesModel} onChange={setAnglesModel} />
+                </div>
               ) : (
                 <div className="space-y-3">
                   {/* Distribution math */}
@@ -748,11 +904,15 @@ async function handleGenerateAngles() {
 
 
 
-        {/* Launch button — in angles mode only show after angles generated */}
-        {(generationMode === 'templates' || generatedAngles.length > 0) && (
+        {/* Launch button */}
+        {(generationMode === 'templates' || generatedAngles.length > 0 || winningAngles.length > 0) && (
           <button
             onClick={handleLaunch}
-            disabled={launching || (generationMode === 'angles' && generatedAngles.filter(a => a.selected).length === 0)}
+            disabled={
+              launching ||
+              (generationMode === 'angles' && generatedAngles.filter(a => a.selected).length === 0) ||
+              (generationMode === 'winning_ads' && (winningAdsCount === 0 || winningAngles.filter(a => a.selected).length === 0))
+            }
             className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {launching ? 'Lanzando...' : `Lanzar batch — ${totalConcepts} conceptos`}

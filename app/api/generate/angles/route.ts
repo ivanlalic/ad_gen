@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@/lib/supabase/server'
 import { getNicheConfig } from '@/lib/constants/niches'
 import { getCountryConfig } from '@/lib/constants/countries'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const geminiAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! })
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const { productId, numAngles, keyOffers } = body
+  const model: string = body.model ?? 'claude-haiku-4-5-20251001'
 
   if (!productId || !numAngles) {
     return NextResponse.json({ error: 'productId and numAngles required' }, { status: 400 })
@@ -75,17 +76,29 @@ ${(product as any).use_cases ? `Casos de uso: ${(product as any).use_cases}` : '
 Generá ${numAngles} ángulos creativos únicos y diferenciados entre sí. Cada ángulo debe apelar a un insight o segmento diferente de la audiencia. Asegurate de cubrir variedad: testimonial, problema-solución, aspiracional, autoridad, urgencia, comparación, etc.`
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    })
+    let rawText = ''
 
-    const rawText = message.content
-      .filter(b => b.type === 'text')
-      .map(b => (b as { type: 'text'; text: string }).text)
-      .join('')
+    if (model.startsWith('claude-')) {
+      const Anthropic = (await import('@anthropic-ai/sdk')).default
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+      const message = await anthropic.messages.create({
+        model,
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      })
+      rawText = message.content
+        .filter(b => b.type === 'text')
+        .map(b => (b as { type: 'text'; text: string }).text)
+        .join('')
+    } else {
+      const response = await geminiAi.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        config: { systemInstruction: systemPrompt, temperature: 0.8 },
+      })
+      rawText = response.text ?? ''
+    }
 
     const match = rawText.match(/\[[\s\S]*\]/)
     if (!match) return NextResponse.json({ error: 'Invalid model response' }, { status: 500 })

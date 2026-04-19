@@ -51,6 +51,7 @@ interface ConceptCardProps {
   isSelected?: boolean
   selectionMode?: boolean
   onToggleSelect?: () => void
+  generationMode?: string
 }
 
 const ASPECT_PADDING: Record<string, string> = {
@@ -78,6 +79,7 @@ export function ConceptCard({
   isSelected = false,
   selectionMode = false,
   onToggleSelect,
+  generationMode,
 }: ConceptCardProps) {
   const router = useRouter()
   const primaryFormat: AdFormat = (format ?? (aspectRatio as AdFormat) ?? '4:5')
@@ -519,9 +521,15 @@ export function ConceptCard({
             </span>
           )}
           {concept.angle_number != null && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">
-              Ángulo {concept.angle_number}
-            </span>
+            generationMode === 'winning_ads' ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                🏆 {concept.angle_number}
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                Ángulo {concept.angle_number}
+              </span>
+            )
           )}
         </div>
 

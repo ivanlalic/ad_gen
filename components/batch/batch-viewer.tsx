@@ -785,6 +785,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
                 isSelected={selectedConcepts.has(concept.id)}
                 selectionMode={selectedConcepts.size > 0}
                 onToggleSelect={() => toggleSelectConcept(concept.id)}
+                generationMode={(batch as any).generation_mode ?? undefined}
               />
             </motion.div>
           ))}

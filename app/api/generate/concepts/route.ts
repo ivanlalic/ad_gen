@@ -262,7 +262,8 @@ export async function POST(req: NextRequest) {
     ? comments.map((c: any) => c.content_text).filter(Boolean).join('\n')
     : ''
 
-  const isAnglesMode = (batch as any).generation_mode === 'angles'
+  const isWinningAdsMode = (batch as any).generation_mode === 'winning_ads'
+  const isAnglesMode = (batch as any).generation_mode === 'angles' || isWinningAdsMode
 
   // Build pinned concept section (templates mode only)
   const pinnedSection = !isAnglesMode && pinnedConceptText
@@ -342,7 +343,9 @@ REGLAS CRÍTICAS:
 2. El source_grounding debe ser específico: "basado en review de [nombre]: '[cita]'" o "basado en winning ad — hook de [descripción]"
 3. Copy acorde al tono de voz configurado
 4. No usar claims no aprobados
-${isAnglesMode ? anglesDistributionText : `5. Distribuí las plantillas según esta distribución:
+${isWinningAdsMode ? `MODO GANADORES:
+Estos ángulos fueron extraídos de ads ganadores reales de este producto. Generá variaciones y evoluciones — misma dirección de messaging, copy fresco. No copies literalmente: mejorá, variá, adaptá al formato. En source_grounding indicá: "Variación de ganador: [título del ángulo]".
+${anglesDistributionText}` : isAnglesMode ? anglesDistributionText : `5. Distribuí las plantillas según esta distribución:
 ${distributionText}
 6. No saltes ninguna plantilla — el objetivo es variedad de ángulos`}
 7. Headlines cortos y punchy (máx 8 palabras)
