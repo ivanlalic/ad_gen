@@ -121,6 +121,19 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
 
     setGenerationStep('Generando conceptos con Claude...')
 
+    // Start polling immediately — batch status flips to generating_concepts
+    // in the API before streaming starts, but React props still show 'queued'.
+    // Without this, concepts only appear all at once when the fetch resolves.
+    conceptPollStarted.current = true
+    let fetchDone = false
+    let retries = 0
+    const poll = () => {
+      if (fetchDone || retries >= MAX_RETRIES) return
+      retries++
+      setTimeout(() => { router.refresh(); poll() }, 1500)
+    }
+    setTimeout(poll, 1500) // first poll after API has had time to flip status
+
     fetch('/api/generate/concepts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -130,6 +143,7 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
         totalConcepts: batch.total_concepts,
       }),
     }).then(async (res) => {
+      fetchDone = true
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         gooeyToast.error(err.error || 'Error generando conceptos')
@@ -137,13 +151,14 @@ export function BatchViewer({ batch, concepts }: BatchViewerProps) {
       setGenerationStep(null)
       router.refresh()
     }).catch(() => {
+      fetchDone = true
       gooeyToast.error('Error de conexión generando conceptos')
       setGenerationStep(null)
       router.refresh()
     })
   }, [batch.status, batch.id, batch.products?.id, batch.total_concepts, router])
 
-  // Poll for concept generation
+  // Poll for concept generation (page loaded mid-generation)
   useEffect(() => {
     if (batch.status !== 'generating_concepts') return
     if (conceptPollStarted.current) return
